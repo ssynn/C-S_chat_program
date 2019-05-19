@@ -1,6 +1,17 @@
 import socket
 import json
 
+'''
+客户端发送给服务端的数据格式
+{
+    address:int,
+    port:int,
+    text:str,
+    time:str
+}
+
+'''
+
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind(('127.0.0.1',4544))
 # 建立连接:
