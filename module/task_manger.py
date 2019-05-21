@@ -21,11 +21,6 @@ class TaskManger(QWidget):
         self.cpuWidget = QWidget()
         self.cpuWidget.setParent(self.content)
         self.cpuWidget.setVisible(True)
-        # self.cpuWidget.setStyleSheet('''
-        #     QWidget{
-        #         border: 1px solid black;
-        #     }
-        # ''')
 
         self.diskPage = QWidget()
         self.diskPage.setParent(self.content)
