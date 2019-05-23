@@ -2,51 +2,63 @@ import socket
 import threading
 import time
 import json
+import datetime
 
 
 def tcplink(sock, addr, master):
     print('Accept new connection from %s:%s...' % addr)
-    sock.send(('Welcome! '+str(addr)).encode())
-    
+    sock.send(f"Welcome! {addr[0]}:{addr[1]}".encode())
+    mySocket = addr[0]+':'+str(addr[1])
+    master._socket_pool[mySocket] = sock
     while True:
-        time.sleep(1)
-        # 获取接受的消息，传给自己
-        get_msg = master.get_msg(addr[1])
-        print(str(addr[1])+" received:"+str(get_msg))
-        sock.send(json.dumps(get_msg).encode())
+        # time.sleep(1)
 
-        # 每次最多接受一个字节
-        data = sock.recv(1024)
-        
-        if not data or data.decode('utf-8') == 'exit':
+        # 每次最多接受一个字节,数据格式为json
+        data = sock.recv(1024).decode()
+        data = json.loads(data)
+        if not data or data['operation'] == 'exit':
             break
 
-        master.push_msg(data.decode(), addr[1])
+        # 把收到的数据放入缓冲池
+        master.push_msg(data, (data['source'], data['target']))
 
+    # 断开连接
     sock.close()
+    master._socket_pool.erase(sock)
     print('Connection from %s:%s closed.' % addr)
 
 
 class Server():
     def __init__(self):
-        self._msg_queue = []
+        self._msg_queue = dict()
         self._max_user = 5
+        self._socket_pool = dict()
 
-    def push_msg(self, msg: str):
-        msg = json.loads(msg)
-        try:
-            msg[0] = int(msg[0])
-            if msg[0]<1024 or msg[0] > 9999:
-                raise Exception("Port Error")
-            self._msg_queue.append(msg)
-        except Exception as e:
-            print(e)
+    # 把收到的消息放入消息缓冲池
+    def push_msg(self, msg: dict, head: tuple):
+        if head not in self._msg_queue:
+            self._msg_queue[head] = [msg]
+        else:
+            self._msg_queue[head].append(msg)
 
+    # 主进程处理消息池的方法
     def handle(self):
+        '''
+        0.1s 检查一次缓冲池，把消息发送给对应的客户端
+        '''
         while True:
             time.sleep(1)
+            
             print("Waitting:" + str(self._msg_queue))
-    
+            for head in self._msg_queue:
+                if head[1] in self._socket_pool and self._msg_queue[head]!=[]:
+                    try:
+                        self._socket_pool[head[1]].send(json.dumps(self._msg_queue[head]).encode())
+                        self._msg_queue[head] = []
+                    except Exception as e:
+                        print(str(datetime.datetime.now())+' 发送失败')
+
+    # 获取发到目标套接字的消息
     def get_msg(self, port: int) -> list:
         need = []
         for item in self._msg_queue:
@@ -57,6 +69,7 @@ class Server():
                 self._msg_queue.remove(item)
         return need
 
+    # 启动服务器
     def start(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -77,10 +90,6 @@ class Server():
             # 创建新线程来处理TCP连接:
             t = threading.Thread(target=tcplink, args=(sock, addr, self))
             t.start()
-
-        
-
-
 
 
 if __name__ == "__main__":
