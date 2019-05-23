@@ -2,7 +2,7 @@ import socket
 import threading
 import time
 import json
-import datetime
+import time
 
 
 def tcplink(sock, addr, master):
@@ -15,16 +15,16 @@ def tcplink(sock, addr, master):
 
         # 每次最多接受一个字节,数据格式为json
         data = sock.recv(1024).decode()
-        data = json.loads(data)
-        if not data or data['operation'] == 'exit':
+        if data == 'exit':
             break
+        data = json.loads(data)
 
         # 把收到的数据放入缓冲池
         master.push_msg(data, (data['source'], data['target']))
 
     # 断开连接
     sock.close()
-    master._socket_pool.erase(sock)
+    master._socket_pool.pop(f"{addr[0]}:{addr[1]}")
     print('Connection from %s:%s closed.' % addr)
 
 
@@ -49,14 +49,14 @@ class Server():
         while True:
             time.sleep(1)
             
-            print("Waitting:" + str(self._msg_queue))
+            print("Online: " + str(self._socket_pool.keys()))
             for head in self._msg_queue:
                 if head[1] in self._socket_pool and self._msg_queue[head]!=[]:
                     try:
                         self._socket_pool[head[1]].send(json.dumps(self._msg_queue[head]).encode())
                         self._msg_queue[head] = []
                     except Exception as e:
-                        print(str(datetime.datetime.now())+' 发送失败')
+                        print(str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 发送失败')
 
     # 获取发到目标套接字的消息
     def get_msg(self, port: int) -> list:
