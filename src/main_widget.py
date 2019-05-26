@@ -1,6 +1,7 @@
 import sys
 import time
 import json
+import socket
 from PyQt5.QtWidgets import (QApplication, QWidget, QMessageBox)
 from src import login
 from src import signup
@@ -13,9 +14,9 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setLogin()
-
+        self.body = None
         self.setGeometry(200, 200, 980, 720)
-        self.setFixedSize(980, 720)
+        self.setFixedSize(1000, 750)
         self.setMyStyle()
 
     # 创建登录菜单
@@ -39,11 +40,13 @@ class MainWindow(QWidget):
     def loginFunction(self):
         _mes = self.login.getInfo()
         self.userID = _mes['ID']
+        self.socket = _mes['SOCKET']
         _mes['PASSWORD'] = pf.encrypt(_mes['PASSWORD'])
         self.isLogin = self.loginToServer(_mes)
         if self.isLogin:
             self.login.setVisible(False)
             self.display()
+            print('登录成功！')
         else:
             print('登录失败!')
 
@@ -56,13 +59,13 @@ class MainWindow(QWidget):
         address = info['SOCKET'].split(':')
 
         try:
-            socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
             # 建立连接:
-            socket.connect((address[0], int(address[1])))
+            sock.connect((address[0], int(address[1])))
 
             msg = {
-                'source': "%s:%d" % socket.getsockname(),
+                'source': "%s:%d" % sock.getsockname(),
                 'target': info['SOCKET'],
                 'time': str(time.strftime('%Y-%m-%d %H:%M:%S')),
                 'operation': 'login',
@@ -70,14 +73,14 @@ class MainWindow(QWidget):
                 'PASSWORD': info['PASSWORD']
             }
 
-            socket.send(json.dumps(msg).encode())
+            sock.send(json.dumps(msg).encode())
 
-            ans = socket.recv(1024).decode('utf-8')
+            ans = sock.recv(1024).decode('utf-8')
             ans = json.loads(ans)
 
             # 验证完与服务器断开连接
-            socket.send(b'exit')
-            socket.close()
+            sock.send(b'exit')
+            sock.close()
 
             if ans['answer'] == 'success':
                 return True
@@ -97,19 +100,21 @@ class MainWindow(QWidget):
 
     # 注册按钮按下
     def signupFunction(self):
+        '''
+        获取注册信息后交由signinToServer（）与服务器通讯进行服务器注册
+        '''
         if self.signup.passwordInput.text() != self.signup.repPasswordInput.text():
             print('密码不一致')
             return
 
-        self.user = self.signup.getInfo()
+        info = self.signup.getInfo()
+        info['SOCKET'] = self.login.getInfo()['SOCKET']
 
-        ans = database.signup(self.user)
-        self.user['class'] = 'stu'
-        self.user.pop('PASSWORD')
+        ans = self.signinToServer(info)
+
         if ans:
-            self.signup.setVisible(False)
+            self.errorBox('注册成功，请登录！')
             print('成功')
-            self.display()
         else:
             print('注册失败')
     
@@ -122,34 +127,38 @@ class MainWindow(QWidget):
         address = info['SOCKET'].split(':')
 
         try:
-            socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
             # 建立连接:
-            socket.connect((address[0], int(address[1])))
+            sock.connect((address[0], int(address[1])))
 
             msg = {
-                'source': "%s:%d" % socket.getsockname(),
+                'source': "%s:%d" % sock.getsockname(),
                 'target': info['SOCKET'],
                 'time': str(time.strftime('%Y-%m-%d %H:%M:%S')),
-                'operation': 'login',
+                'operation': 'signup',
                 'ID': info['ID'],
                 'PASSWORD': info['PASSWORD']
             }
 
-            socket.send(json.dumps(msg).encode())
+            sock.send(json.dumps(msg).encode())
 
-            ans = socket.recv(1024).decode('utf-8')
+            ans = sock.recv(1024).decode('utf-8')
             ans = json.loads(ans)
 
             # 验证完与服务器断开连接
-            socket.send(b'exit')
-            socket.close()
+            sock.send(b'exit')
+            sock.close()
 
             if ans['answer'] == 'success':
                 return True
             else:
-                self.errorBox('用户名或密码错误')
+                self.errorBox(ans['reason'])
                 return False
+        except Exception as e:
+            self.errorBox('服务器错误！')
+            print(e)
+            return False
 
     def backToLogin(self):
         self.signup.setVisible(False)
@@ -161,7 +170,7 @@ class MainWindow(QWidget):
 
     def display(self):
         # 显示登录界面
-        self.body = cp.ClientPage(self.userID)
+        self.body = cp.ClientPage(self.userID, self.socket)
         self.body.setParent(self)
         self.body.setVisible(True)
 
@@ -169,13 +178,17 @@ class MainWindow(QWidget):
     def errorBox(self, mes: str):
         msgBox = QMessageBox(
             QMessageBox.Warning,
-            "警告!",
+            "提示!",
             mes,
             QMessageBox.NoButton,
             self
         )
         msgBox.addButton("确认", QMessageBox.AcceptRole)
         msgBox.exec_()
+
+    def closeEvent(self, a0):
+        if self.body:
+            self.body.offLine()
 
     def setMyStyle(self):
         self.setStyleSheet('''

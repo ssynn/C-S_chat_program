@@ -78,8 +78,10 @@ def checkSocket(num: str) -> bool:
 
 class ClientPage(QWidget):
 
-    def __init__(self):
+    def __init__(self, userID, sock):
         super().__init__()
+        self.userID = userID
+        self.socketName = sock
         self._chat_pages = dict()
         self.chatPageNow = None
         self.initUI()
@@ -110,7 +112,7 @@ class ClientPage(QWidget):
         self.setFixedSize(980, 720)
         # self.setMinimumSize(, 500)
         self.setContentsMargins(0, 0, 0, 0)
-        self.show()
+        # self.show()
 
     def setSelectList(self):
         self.selectListLayout = QVBoxLayout()

@@ -11,34 +11,42 @@ def tcplink(sock, addr, master):
 
     mySocket = addr[0]+':'+str(addr[1])
     master._socket_pool[mySocket] = sock
-    while True:
-        # 每次最多接受一个字节,数据格式为json
-        data = sock.recv(1024).decode()
-        if data == 'exit':
-            break
-        data = json.loads(data)
+    try:
+        while True:
+            # 每次最多接受一个字节,数据格式为json
+            data = sock.recv(1024).decode()
+            if data == 'exit':
+                break
+            data = json.loads(data)
 
-        # 发送信息操作
-        if data['operation'] == 'msg':
-            # 把收到的数据放入缓冲池
-            master.push_msg(data, (data['source'], data['target']))
-        
-        # 登录操作
-        if data['operation'] == 'login':
-            ans = database.login(data)
-            sock.send(json.dumps(ans).encode())
-            break
-        
-        # 注册操作
-        if data['operation'] == 'signup':
-            message = database.signup(data)
-            sock.send(json.dumps(message).encode())
-            break
+            # 发送信息操作
+            if data['operation'] == 'msg':
+                # 把收到的数据放入缓冲池
+                master.push_msg(data, (data['source'], data['target']))
+            
+            # 登录操作
+            if data['operation'] == 'login':
+                ans = database.login(data)
+                sock.send(json.dumps(ans).encode())
+                break
+            
+            # 注册操作
+            if data['operation'] == 'signup':
+                message = database.signup(data)
+                print(message)
+                sock.send(json.dumps(message).encode())
+                break
+        # 断开连接
+        sock.close()
+        master._socket_pool.pop(f"{addr[0]}:{addr[1]}")
+    except Exception as e:
+        # 连接意外终止
+        master._socket_pool.pop(f"{addr[0]}:{addr[1]}")
+    finally:
+        print('Connection from %s:%s closed.' % addr)
+    
 
-    # 断开连接
-    sock.close()
-    master._socket_pool.pop(f"{addr[0]}:{addr[1]}")
-    print('Connection from %s:%s closed.' % addr)
+    
 
 
 class Server():

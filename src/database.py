@@ -14,11 +14,10 @@ def login(user_message: dict) -> bool:
     try:
         conn = sqlite3.connect('./data/data.db')
         cursor = conn.cursor()
-        # 现在administrator表内匹配
         cursor.execute('''
         SELECT ID
         FROM users
-        WHERE ID=%s AND PASSWORD=%s
+        WHERE ID=? AND PASSWORD=?
         ''', (
             user_message['ID'],
             user_message['PASSWORD']
@@ -41,7 +40,7 @@ def signup(user_message: dict) -> dict:
     '''
     传入以下格式的字典
     user_message{
-        'SID': str,
+        'ID': str,
         'PASSWORD': str
     }
     '''
@@ -49,11 +48,15 @@ def signup(user_message: dict) -> dict:
     try:
         conn = sqlite3.connect('./data/data.db')
         cursor = conn.cursor()
+        print(user_message)
         cursor.execute('''
             SELECT *
             FROM users
-            WHERE SID=%s
-            ''', (user_message['ID']))
+            WHERE ID = ?
+            ''', 
+            [user_message['ID']]
+        )
+        print(233)
         if len(cursor.fetchall()) != 0:
             message['reason'] = '用户已存在！'
             message['answer'] = 'fail'
@@ -61,11 +64,11 @@ def signup(user_message: dict) -> dict:
         cursor.execute('''
         INSERT
         INTO users
-        VALUES(%s, %s)
-        ''', (
+        VALUES(?, ?)
+        ''', [
             user_message['ID'],
             user_message['PASSWORD']
-        ))
+        ])
         conn.commit()
         message['answer'] = 'success'
     except Exception as e:
