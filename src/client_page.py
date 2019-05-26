@@ -4,7 +4,7 @@ import json
 import threading
 import time
 from PyQt5.QtWidgets import (QApplication, QWidget, QHBoxLayout, QSplitter,
-                        QToolButton, QLabel, QVBoxLayout, QTextBrowser, QTextEdit, QLineEdit, QMessageBox)
+                             QToolButton, QLabel, QVBoxLayout, QTextBrowser, QTextEdit, QLineEdit, QMessageBox)
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtCore import Qt, QSize
 
@@ -21,6 +21,7 @@ def recvMsg(master):
         },
         ...
     ]
+    接收信息并发送至对应的聊天窗口
     '''
     while True:
         try:
@@ -39,7 +40,8 @@ def recvMsg(master):
                 }
             ''')
             for msg in msgs:
-                target_page.messageBox.append(msg['time']+' ' + msg['source']+': '+msg['text'])
+                target_page.messageBox.append(
+                    msg['time']+' ' + msg['source']+': '+msg['text'])
         except Exception as e:
             print('Connection closed!')
             print(e)
@@ -66,7 +68,7 @@ def checkSocket(num: str) -> bool:
         if len(ip) != 4:
             return False
         for i in ip:
-            if i<0 or i>255:
+            if i < 0 or i > 255:
                 return False
         return True
     except Exception as e:
@@ -83,12 +85,10 @@ class ClientPage(QWidget):
         self.initUI()
         self.setMyStyleSheet()
         self.onLine()
-        
-    
+
     def closeEvent(self, a0):
         self.offLine()
-    
-    
+
     def initUI(self):
         self.selectList = QWidget()
         self.setSelectList()
@@ -111,14 +111,14 @@ class ClientPage(QWidget):
         # self.setMinimumSize(, 500)
         self.setContentsMargins(0, 0, 0, 0)
         self.show()
-    
+
     def setSelectList(self):
         self.selectListLayout = QVBoxLayout()
         self.selectListLayout.addStretch(100)
         self.selectList.setLayout(self.selectListLayout)
         self.selectList.setFixedWidth(200)
-        self.selectListLayout.setContentsMargins(0,0,0,0)
-    
+        self.selectListLayout.setContentsMargins(0, 0, 0, 0)
+
     def setChatPage(self):
         self.chatPage.setMinimumWidth(300)
 
@@ -172,7 +172,7 @@ class ClientPage(QWidget):
         chatPageLayout.addWidget(messageBox)
         chatPageLayout.addWidget(inputBox)
         chatPageLayout.addLayout(buttons)
-        chatPageLayout.setContentsMargins(0,0,0,0)
+        chatPageLayout.setContentsMargins(0, 0, 0, 0)
 
         chatPage = QWidget()
         chatPage.messageBox = messageBox
@@ -181,7 +181,7 @@ class ClientPage(QWidget):
         chatPage.submit = submit
         chatPage.setLayout(chatPageLayout)
         chatPage.setFixedSize(500, 650)
-        chatPage.setContentsMargins(0,0,0,0)
+        chatPage.setContentsMargins(0, 0, 0, 0)
 
         return chatPage
 
@@ -225,7 +225,7 @@ class ClientPage(QWidget):
 
         self.rightPage.setFixedWidth(200)
         self.rightPage.setLayout(self.rightPageLayout)
-    
+
     def newConnect(self):
         '''
         创建新的聊天界面
@@ -236,12 +236,13 @@ class ClientPage(QWidget):
         if self.inputSocket.text() in self._chat_pages:
             self.refresh(self.inputSocket.text())
             return
- 
+
         # 创建选择按钮
         newChatButton = QToolButton()
         newChatButton.setText(self.inputSocket.text())
         newChatButton.setFixedSize(200, 50)
-        newChatButton.clicked.connect(lambda: self.refresh(newChatButton.text()))
+        newChatButton.clicked.connect(
+            lambda: self.refresh(newChatButton.text()))
 
         # 创建聊天页面
         newchatPage = self.createChatPageContents()
@@ -249,14 +250,16 @@ class ClientPage(QWidget):
         newchatPage.socketName = self.inputSocket.text()
 
         # 把建立的聊天页面加入列表
-        self._chat_pages[self.inputSocket.text()] = (newChatButton, newchatPage)
-        newchatPage.closePage.clicked.connect(lambda: self.closePageFunction(newchatPage.socketName))
+        self._chat_pages[self.inputSocket.text()] = (
+            newChatButton, newchatPage)
+        newchatPage.closePage.clicked.connect(
+            lambda: self.closePageFunction(newchatPage.socketName))
 
         # 创建选择按钮
         self.selectListLayout.insertWidget(0, newChatButton)
-        
+
         self.refresh(self.inputSocket.text())
-        
+
     def refresh(self, socketName):
         '''
         展示当前选择的页面
@@ -283,7 +286,7 @@ class ClientPage(QWidget):
                     border-left:9px solid green;
                 }
                 ''')
-  
+
                 break
 
     def onLine(self):
@@ -294,17 +297,14 @@ class ClientPage(QWidget):
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             # 建立连接:
             self.socket.connect(('127.0.0.1', 9999))
-            # 接收欢迎消息:
-            data = self.socket.recv(1024).decode('utf-8')
-            print(data)
-            # self.chatPageNow.messageBox.append(self.socket.recv(1024).decode('utf-8'))
-            
+
             # 专门一个线程用于接受消息
             self.receiver = threading.Thread(target=recvMsg, args=(self,))
             self.receiver.start()
 
             # 设置页面信息
-            self.setWindowTitle(f'欢迎登录: {self.socket.getsockname()[0]}:{self.socket.getsockname()[1]}')
+            self.setWindowTitle(
+                f'欢迎登录: {self.socket.getsockname()[0]}:{self.socket.getsockname()[1]}')
             self.isConnected.setText('已连接至服务器')
             self.isConnected.setStyleSheet('''
             QLabel{
@@ -316,14 +316,14 @@ class ClientPage(QWidget):
         except Exception as e:
             print('连接出现错误')
             print(e)
-    
+
     def offLine(self):
         try:
             self.socket.send(b'exit')
             self.socket.close()
         except Exception as e:
             print(e)
-    
+
     def submitMsg(self):
         '''
         客户端发送给服务端的数据格式
@@ -338,18 +338,20 @@ class ClientPage(QWidget):
         '''
         # 发送数据:
         msg = {
-            'source':"%s:%d" % self.socket.getsockname(),
-            'target':self.chatPageNow.socketName,
-            'text':self.chatPageNow.inputBox.toPlainText(),
-            'time':str(time.strftime('%Y-%m-%d %H:%M:%S')),
-            'operation':'msg'
+            'source': "%s:%d" % self.socket.getsockname(),
+            'target': self.chatPageNow.socketName,
+            'text': self.chatPageNow.inputBox.toPlainText(),
+            'time': str(time.strftime('%Y-%m-%d %H:%M:%S')),
+            'operation': 'msg'
         }
         try:
             self.socket.send(json.dumps(msg).encode())
-            self.chatPageNow.messageBox.append(str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 本机: '+ msg['text'])
+            self.chatPageNow.messageBox.append(
+                str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 本机: ' + msg['text'])
             self.chatPageNow.inputBox.clear()
         except Exception as e:
-            self.chatPageNow.messageBox.append(str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 发送失败')
+            self.chatPageNow.messageBox.append(
+                str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 发送失败')
             print(e)
 
     # 错误提示框
@@ -385,7 +387,7 @@ class ClientPage(QWidget):
                 background-color: rgba(230, 230, 230, 0.3);
             }
             '''
-        )
+                                      )
         self.connectButton.setStyleSheet('''
             QToolButton{
                 border-radius:10px;
@@ -421,6 +423,7 @@ class ClientPage(QWidget):
                 color:white;
             }
         ''')
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -3,24 +3,37 @@ import threading
 import time
 import json
 import time
+from src import database
 
 
 def tcplink(sock, addr, master):
     print('Accept new connection from %s:%s...' % addr)
-    sock.send(f"Welcome! {addr[0]}:{addr[1]}".encode())
+
     mySocket = addr[0]+':'+str(addr[1])
     master._socket_pool[mySocket] = sock
     while True:
-        # time.sleep(1)
-
         # 每次最多接受一个字节,数据格式为json
         data = sock.recv(1024).decode()
         if data == 'exit':
             break
         data = json.loads(data)
 
-        # 把收到的数据放入缓冲池
-        master.push_msg(data, (data['source'], data['target']))
+        # 发送信息操作
+        if data['operation'] == 'msg':
+            # 把收到的数据放入缓冲池
+            master.push_msg(data, (data['source'], data['target']))
+        
+        # 登录操作
+        if data['operation'] == 'login':
+            ans = database.login(data)
+            sock.send(json.dumps(ans).encode())
+            break
+        
+        # 注册操作
+        if data['operation'] == 'signup':
+            message = database.signup(data)
+            sock.send(json.dumps(message).encode())
+            break
 
     # 断开连接
     sock.close()
