@@ -78,7 +78,7 @@ def checkSocket(num: str) -> bool:
 
 class ClientPage(QWidget):
 
-    def __init__(self, userID, sock):
+    def __init__(self, userID: str, sock):
         super().__init__()
         self.userID = userID
         self.socketName = sock
@@ -107,7 +107,7 @@ class ClientPage(QWidget):
         self.bodyLayout.addWidget(self.rightPage)
 
         self.setLayout(self.bodyLayout)
-        self.setWindowTitle('CS聊天程序')
+        self.setWindowTitle('欢迎使用CS聊天程序：'+self.userID)
 
         self.setFixedSize(980, 720)
         # self.setMinimumSize(, 500)
@@ -305,8 +305,6 @@ class ClientPage(QWidget):
             self.receiver.start()
 
             # 设置页面信息
-            self.setWindowTitle(
-                f'欢迎登录: {self.socket.getsockname()[0]}:{self.socket.getsockname()[1]}')
             self.isConnected.setText('已连接至服务器')
             self.isConnected.setStyleSheet('''
             QLabel{
