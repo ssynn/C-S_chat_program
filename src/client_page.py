@@ -8,6 +8,21 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QHBoxLayout, QSplitter,
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtCore import Qt, QSize
 
+# FIXME
+'''
+_chat_page 使用userID作为key
+与用户通讯不再使用socket
+source和target不再填写socket
+'''
+
+# TODO
+'''
+好友列表
+申请好友
+toolbutton显示用户名
+接受好友请求
+删除好友
+'''
 
 def recvMsg(master):
     '''
@@ -45,6 +60,9 @@ def recvMsg(master):
         except Exception as e:
             print('Connection closed!')
             print(e)
+            # 清空socket变量
+            master.socket = None
+            # 显示未连接到服务器
             master.isConnected.setText('未连接至服务器')
             master.isConnected.setStyleSheet('''
             QLabel{
@@ -56,32 +74,16 @@ def recvMsg(master):
             break
 
 
-def checkSocket(num: str) -> bool:
-    try:
-        num = num.split(':')
-        ip = num[0]
-        port = int(num[1])
-        if port < 1024 or port > 65535:
-            return False
-        ip = ip.split('.')
-        ip = list(map(int, ip))
-        if len(ip) != 4:
-            return False
-        for i in ip:
-            if i < 0 or i > 255:
-                return False
-        return True
-    except Exception as e:
-        print('套接字格式错误')
-        return False
-
-
 class ClientPage(QWidget):
 
-    def __init__(self, userID: str, sock):
+    def __init__(self, userID: str, sock, serverSocket):
+        '''
+        继承从main_widget建立的tcp连接，获取用户名，服务器套接字
+        '''
         super().__init__()
         self.userID = userID
-        self.socketName = sock
+        self.socket = sock
+        self.serverSocket = serverSocket
         self._chat_pages = dict()
         self.chatPageNow = None
         self.initUI()
@@ -232,9 +234,7 @@ class ClientPage(QWidget):
         '''
         创建新的聊天界面
         '''
-        if not checkSocket(self.inputSocket.text()):
-            self.errorBox('套接字格式错误！')
-            return
+
         if self.inputSocket.text() in self._chat_pages:
             self.refresh(self.inputSocket.text())
             return
@@ -296,9 +296,10 @@ class ClientPage(QWidget):
         连接服务器
         '''
         try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # 建立连接:
-            self.socket.connect(('127.0.0.1', 9999))
+            if self.socket is None:
+                # 建立新的连接:
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket.connect(('127.0.0.1', 9999))
 
             # 专门一个线程用于接受消息
             self.receiver = threading.Thread(target=recvMsg, args=(self,))

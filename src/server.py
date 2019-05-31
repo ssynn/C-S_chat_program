@@ -6,7 +6,18 @@ import time
 from src import database
 
 
+# FIXME
+'''
+
+'''
+
 def tcplink(sock, addr, master):
+    '''
+    与客户端建立连接
+    获取用户名
+    socket变量记录用户名
+    记录tcp连接
+    '''
     print('Accept new connection from %s:%s...' % addr)
 
     mySocket = addr[0]+':'+str(addr[1])
@@ -18,7 +29,7 @@ def tcplink(sock, addr, master):
             if data == 'exit':
                 break
             data = json.loads(data)
-
+            userID = data['ID']
             # 发送信息操作
             if data['operation'] == 'msg':
                 # 把收到的数据放入缓冲池
@@ -28,7 +39,8 @@ def tcplink(sock, addr, master):
             if data['operation'] == 'login':
                 ans = database.login(data)
                 sock.send(json.dumps(ans).encode())
-                break
+                sock.userID = data['ID']
+                master._id_to_socket[userID] = mySocket
             
             # 注册操作
             if data['operation'] == 'signup':
@@ -36,33 +48,36 @@ def tcplink(sock, addr, master):
                 print(message)
                 sock.send(json.dumps(message).encode())
                 break
+
         # 断开连接
         sock.close()
         master._socket_pool.pop(f"{addr[0]}:{addr[1]}")
     except Exception as e:
         # 连接意外终止
         master._socket_pool.pop(f"{addr[0]}:{addr[1]}")
+        master._id_to_socket.pop(userID)
     finally:
         print('Connection from %s:%s closed.' % addr)
     
 
-    
-
-
 class Server():
     def __init__(self):
-        self._msg_queue = dict()
+        self._msg_buffer = dict()
         self._max_user = 5
         self._socket_pool = dict()
+        self._id_to_socket = dict()
 
     # 把收到的消息放入消息缓冲池
     def push_msg(self, msg: dict, head: tuple):
-        if head not in self._msg_queue:
-            self._msg_queue[head] = [msg]
+        '''
+        head (userID1, userID2)
+        '''
+        if head not in self._msg_buffer:
+            self._msg_buffer[head] = [msg]
         else:
-            self._msg_queue[head].append(msg)
+            self._msg_buffer[head].append(msg)
 
-    # 主进程处理消息池的方法
+    # FIXME 主进程处理消息池的方法
     def handle(self):
         '''
         0.1s 检查一次缓冲池，把消息发送给对应的客户端
@@ -71,24 +86,59 @@ class Server():
             time.sleep(1)
             
             print("Online: " + str(self._socket_pool.keys()))
-            for head in self._msg_queue:
-                if head[1] in self._socket_pool and self._msg_queue[head]!=[]:
+            for head in self._msg_buffer:
+                # 如果目标消息在socket池则把消息发送到对应的socket地址
+                targetSocket = self.idToSocket(targetSocket)
+                if targetSocket in self._socket_pool and self._msg_buffer[head]!=[]:
                     try:
-                        self._socket_pool[head[1]].send(json.dumps(self._msg_queue[head]).encode())
-                        self._msg_queue[head] = []
+                        msg = {
+                            'operation':'msg',
+                            'message':self._msg_buffer[head]
+                        }
+                        self._socket_pool[targetSocket].send(json.dumps(msg).encode())
+                        self._msg_buffer[head] = []
                     except Exception as e:
                         print(str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 发送失败')
 
     # 获取发到目标套接字的消息
-    def get_msg(self, port: int) -> list:
-        need = []
-        for item in self._msg_queue:
-            if item[0] == port:
-                need.append(item)
-        for item in need:
-            if item in self._msg_queue:
-                self._msg_queue.remove(item)
-        return need
+    def get_info(self) -> dict:
+        '''
+        获取在线的用户，离线的用户，缓冲池
+        '''
+        ans = {
+            'buffer':self._msg_buffer,
+            'online':None,
+            'offline':None
+        }
+        users_all = database.get_all_users()
+        
+        # 生成在线用户表
+        onlineUsers = []
+        for sock in self._socket_pool:
+            onlineUsers.append(self._socket_pool[sock].userID)
+        
+        # 生成离线用户表
+        offlineUsers = []
+        for user in users_all:
+            if user not in onlineUsers:
+                offlineUsers.append(user)
+        
+        ans['online'] = onlineUsers
+        ans['offline'] = offlineUsers
+
+        return ans
+
+    def socketToId(self, socket) -> str:
+        '''
+        把socket转换为用户ID
+        '''
+        return self._socket_pool[socket].userID
+
+    def idToSocket(self, _id):
+        '''
+        
+        '''
+        return self._id_to_socket[_id]
 
     # 启动服务器
     def start(self):

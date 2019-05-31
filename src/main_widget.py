@@ -59,13 +59,13 @@ class MainWindow(QWidget):
         address = info['SOCKET'].split(':')
 
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
             # 建立连接:
-            sock.connect((address[0], int(address[1])))
+            self.sock.connect((address[0], int(address[1])))
 
             msg = {
-                'source': "%s:%d" % sock.getsockname(),
+                'source': "%s:%d" % self.sock.getsockname(),
                 'target': info['SOCKET'],
                 'time': str(time.strftime('%Y-%m-%d %H:%M:%S')),
                 'operation': 'login',
@@ -73,18 +73,17 @@ class MainWindow(QWidget):
                 'PASSWORD': info['PASSWORD']
             }
 
-            sock.send(json.dumps(msg).encode())
+            self.sock.send(json.dumps(msg).encode())
 
-            ans = sock.recv(1024).decode('utf-8')
+            ans = self.sock.recv(1024).decode('utf-8')
             ans = json.loads(ans)
-
-            # 验证完与服务器断开连接
-            sock.send(b'exit')
-            sock.close()
 
             if ans['answer'] == 'success':
                 return True
             else:
+                # 验证失败则与服务器断开连接
+                self.sock.send(b'exit')
+                self.sock.close()
                 self.errorBox('用户名或密码错误')
                 return False
 
@@ -170,7 +169,7 @@ class MainWindow(QWidget):
 
     def display(self):
         # 显示登录界面
-        self.body = cp.ClientPage(self.userID, self.socket)
+        self.body = cp.ClientPage(self.userID, self.sock, self.socket)
         self.body.setParent(self)
         self.body.setVisible(True)
 

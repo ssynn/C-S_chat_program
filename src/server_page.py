@@ -51,13 +51,13 @@ class ServerPage(QWidget):
             self.messageBuffer.item(0, i).setTextAlignment(Qt.AlignCenter)
             self.messageBuffer.item(0, i).setFont(QFont('微软雅黑', 15))
 
-        self.messageBuffer.insertRow(1)
-        a = QTableWidgetItem('127.0.0.1:9999')
-        b = QTableWidgetItem('127.0.0.1:9999')
-        c = QTableWidgetItem('22121321321321')
-        self.messageBuffer.setItem(1, 0, a)
-        self.messageBuffer.setItem(1, 1, b)
-        self.messageBuffer.setItem(1, 2, c)
+        # self.messageBuffer.insertRow(1)
+        # a = QTableWidgetItem('127.0.0.1:9999')
+        # b = QTableWidgetItem('127.0.0.1:9999')
+        # c = QTableWidgetItem('22121321321321')
+        # self.messageBuffer.setItem(1, 0, a)
+        # self.messageBuffer.setItem(1, 1, b)
+        # self.messageBuffer.setItem(1, 2, c)
 
     def setOnlineUsers(self):
         self.onlineUser = QTableWidget(1, 1)
@@ -79,9 +79,9 @@ class ServerPage(QWidget):
         self.onlineUser.item(0, 0).setTextAlignment(Qt.AlignCenter)
         self.onlineUser.item(0, 0).setFont(QFont('微软雅黑', 15))
 
-        self.onlineUser.insertRow(1)
-        tt = QTableWidgetItem('127.0.0.1:9999')
-        self.onlineUser.setItem(1, 0, tt)
+        # self.onlineUser.insertRow(1)
+        # tt = QTableWidgetItem('127.0.0.1:9999')
+        # self.onlineUser.setItem(1, 0, tt)
 
     def setOfflineUsers(self):
         self.offlineUser = QTableWidget(1, 1)
@@ -103,9 +103,9 @@ class ServerPage(QWidget):
         self.offlineUser.item(0, 0).setTextAlignment(Qt.AlignCenter)
         self.offlineUser.item(0, 0).setFont(QFont('微软雅黑', 15))
 
-        self.offlineUser.insertRow(1)
-        tt = QTableWidgetItem('127.0.0.1:9999')
-        self.offlineUser.setItem(1, 0, tt)
+        # self.offlineUser.insertRow(1)
+        # tt = QTableWidgetItem('127.0.0.1:9999')
+        # self.offlineUser.setItem(1, 0, tt)
     
     def refresh(self):
         '''

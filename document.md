@@ -36,3 +36,21 @@
       }
       </code>
    1. 当目标用户在线则把信息发给目标，否则进入缓存数据库
+
+
+## 数据交换格式
+<code>
+{
+    operation:str,
+    source:str,
+    target:str,
+    text:str,
+    time:str,
+}
+</code>
+#### operation: 
+|msg|login|signup|friendRequest|confirmFriends|
+|:-:|:-:|:-:|:-:|:-:|
+|发送消息|登录|注册|好友申请|确认好友申请|
+#### source & target
+使用用户ID

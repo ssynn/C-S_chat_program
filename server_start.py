@@ -20,6 +20,14 @@ if __name__ == '__main__':
                 ID text primary key,
                 PASSWORD text
                 )''')
+    if not ('friends',) in tables:
+        cursor.execute('''
+            create table friends (
+                ID1 text,
+                ID2 text,
+                primary key (ID1, ID2)
+                )
+        ''')
     cursor.close()
     conn.commit()
     conn.close()
