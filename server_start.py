@@ -3,6 +3,7 @@ import os
 import sqlite3
 from PyQt5.QtWidgets import QApplication
 from src import server
+from src import server_page as sp
 
 if __name__ == '__main__':
     # 如若没有数据库目录则建立一个数据库目录
@@ -32,5 +33,7 @@ if __name__ == '__main__':
     conn.commit()
     conn.close()
 
-    sv = server.Server()
-    sv.start()
+    app = QApplication(sys.argv)
+    ex = sp.ServerPage()
+    ex.show()
+    sys.exit(app.exec_())

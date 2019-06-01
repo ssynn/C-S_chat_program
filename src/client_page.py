@@ -4,9 +4,11 @@ import json
 import threading
 import time
 from PyQt5.QtWidgets import (QApplication, QWidget, QHBoxLayout, QSplitter,
-                             QToolButton, QLabel, QVBoxLayout, QTextBrowser, QTextEdit, QLineEdit, QMessageBox)
-from PyQt5.QtGui import QIcon, QColor
-from PyQt5.QtCore import Qt, QSize
+                             QTableWidget, QTableWidgetItem, QAbstractItemView,
+                             QToolButton, QLabel, QVBoxLayout, QTextBrowser,
+                             QTextEdit, QLineEdit, QMessageBox, QHeaderView)
+from PyQt5.QtGui import QIcon, QColor, QFont
+from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
 from src import public_function as pf
 
 # FIXME
@@ -24,58 +26,15 @@ toolbutton显示用户名
 '''
 
 
-def recvMsg(master):
-    '''
-    返回的消息格式为[
-        {
-            source:str,
-            target:str,
-            text:str,
-            time:str,
-            operation:str
-        },
-        ...
-    ]
-    接收信息并发送至对应的聊天窗口
-    '''
-    while True:
-        try:
-            msgs = master.socket.recv(2048).decode('utf-8')
-            msgs = json.loads(msgs)
-            target_page = None
-            for page in master._chat_pages:
-                if msgs[0]['source'] == page:
-                    target_page = master._chat_pages[page][1]
-                    break
-            if target_page is None:
-                continue
-            master._chat_pages[page][0].setStyleSheet('''
-                QToolButton{
-                    border-left:9px solid yellow;
-                }
-            ''')
-            for msg in msgs:
-                target_page.messageBox.append(
-                    msg['time']+' ' + msg['source']+': '+msg['text'])
-        except Exception as e:
-            print('Connection closed!')
-            print(e)
-            # 清空socket变量
-            master.socket = None
-            # FIXME 显示未连接到服务器
-            
-            break
-
-
 class ClientPage(QWidget):
-
-    def __init__(self, userID: str, sock, serverSocket):
+    def __init__(self, userInfo: dict, sock, serverSocket):
         '''
         继承从main_widget建立的tcp连接
         传入用户ID，TCP连接，服务器套接字
         '''
         super().__init__()
-        self.userID = userID
+        self.userID = userInfo['ID']
+        self.userInfo = userInfo
         self.socket = sock
         self.serverSocket = serverSocket
         self._chat_pages = dict()
@@ -195,45 +154,73 @@ class ClientPage(QWidget):
         '''
         设置右边的元素
         '''
-        # 输入套接字
-        self.inputSocket = QLineEdit()
-        self.inputSocket.setText('输入套接字')
-        self.inputSocket.setFixedSize(180, 40)
 
-        # 创建一个新的聊天页面
-        self.connectButton = QToolButton()
-        self.connectButton.setText('建立聊天')
-        self.connectButton.clicked.connect(self.newConnect)
-        self.connectButton.setFixedSize(180, 50)
+        self.friendsList = QTableWidget(1, 1)
+        self.friendsList.horizontalHeader().setVisible(False)
+        self.friendsList.verticalHeader().setVisible(False)
+        self.friendsList.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.friendsList.setFocusPolicy(Qt.NoFocus)
+        # self.friendsList.setColumnWidth(0, 150)
+        self.friendsList.setShowGrid(False)
+        self.friendsList.setFixedWidth(180)
+        self.friendsList.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.friendsList.verticalScrollBar().setStyleSheet('''
+            QScrollBar{background:transparent; width: 10px;}
+            QScrollBar::handle{background:lightgray; border:2px solid transparent; border-radius:5px;}
+            QScrollBar::handle:hover{background:gray;}
+            QScrollBar::sub-line{background:transparent;}
+            QScrollBar::add-line{background:transparent;}
+        ''')
 
-        # 显示连接服务器状态
-        self.isConnected = QLabel()
-        self.isConnected.setFixedSize(180, 40)
-        self.isConnected.setText('未连接服务器')
-
-        # 连接服务器
-        self.connectServer = QToolButton()
-        self.connectServer.setFixedSize(180, 50)
-        self.connectServer.setText('连接服务器')
-        self.connectServer.clicked.connect(self.onLine)
+        self.friendsList.setItem(0, 0, QTableWidgetItem('好友列表'))
+        self.friendsList.item(0, 0).setTextAlignment(Qt.AlignCenter)
+        self.friendsList.item(0, 0).setFont(QFont('微软雅黑', 15))
 
         self.rightPageLayout = QVBoxLayout()
-        self.rightPageLayout.addWidget(self.inputSocket)
-        self.rightPageLayout.addWidget(self.connectButton)
-        self.rightPageLayout.addSpacing(50)
-        self.rightPageLayout.addWidget(self.isConnected)
-        self.rightPageLayout.addWidget(self.connectServer)
-        self.rightPageLayout.addStretch(10)
+        self.rightPageLayout.addWidget(self.friendsList)
+        self.setMenuBar()
 
         self.rightPage.setFixedWidth(200)
         self.rightPage.setLayout(self.rightPageLayout)
 
-    def newConnect(self, userID, isOnline):
+    def setMenuBar(self):
+        self.friend = QToolButton()
+        self.friend.setIcon(QIcon('icon/friend.png'))
+        self.friend.setFixedSize(40, 40)
+        self.friend.setIconSize(QSize(40, 40))
+        # FIXME self.friend.clicked.connect()
+
+        self.newMessage = QToolButton()
+        self.newMessage.setIcon(QIcon('icon/msg.png'))
+        self.newMessage.setFixedSize(45, 40)
+        self.newMessage.setIconSize(QSize(40, 40))
+        # FIXME self.newMessage.clicked.connect()
+
+        self.isConnected = QToolButton()
+        self.isConnected.setFixedSize(70, 40)
+        self.isConnected.clicked.connect(self.onLine)
+
+        self.menuBarLayout = QHBoxLayout()
+        self.menuBarLayout.addWidget(self.friend)
+        self.menuBarLayout.addWidget(self.newMessage)
+        self.menuBarLayout.addWidget(self.isConnected)
+        self.menuBarLayout.setContentsMargins(0, 0, 0, 0)
+
+        self.menuBar = QWidget()
+        self.menuBar.setLayout(self.menuBarLayout)
+        self.menuBar.setFixedHeight(40)
+        self.menuBar.setContentsMargins(0, 0, 0, 0)
+
+        self.rightPageLayout.addWidget(self.menuBar)
+
+    def newPage(self, userID):
         '''
         双击好友的图标, 传入用户ID
         创建新的聊天界面
         '''
-        pass
+        if userID in self._chat_pages:
+            self.refresh(userID)
+            return
 
         # 创建选择按钮 应该显示用户ID
         newChatButton = QToolButton()
@@ -299,16 +286,74 @@ class ClientPage(QWidget):
                 # 建立新的连接:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.socket.connect(pf.split_socket(self.serverSocket))
+                msg = {
+                    'time': str(time.strftime('%Y-%m-%d %H:%M:%S')),
+                    'operation': 'login',
+                    'ID': self.userInfo['ID'],
+                    'PASSWORD': self.userInfo['PASSWORD']
+                }
+                self.socket.send(json.dumps(msg).encode())
+                data = self.socket.recv(2048).decode('utf-8')
+
+            # 获取好友列表
+            self.socket.send(json.dumps({'operation': 'getFriends'}).encode())
 
             # 专门一个线程用于接受消息
-            self.receiver = threading.Thread(target=recvMsg, args=(self,))
+            self.receiver = RecvMsg(self)
+            self.receiver.refreshFriends.connect(self.makeFriendList)
             self.receiver.start()
 
-            # FIXME 设置在线显示
-            
+            # 设置在线显示
+            self.setOnlineStyle()
+
         except Exception as e:
             print('连接出现错误')
             print(e)
+            self.setOfflineStyle()
+
+    def makeFriendList(self, friends: list, isOnline: list):
+        '''
+        把好友信息显示到用户界面上
+        '''
+        print(friends, isOnline)
+        while self.friendsList.rowCount() != 1:
+            self.friendsList.removeRow(1)
+        for i in range(len(friends)):
+            if isOnline[i] == 0:
+                self.friendsList.insertRow(1)
+                self.friendsList.setRowHeight(1, 50)
+                self.friendsList.setCellWidget(
+                    1, 0, self.makeFriendButton(friends[i], 0))
+
+        for i in range(len(friends)):
+            if isOnline == 1:
+                self.friendsList.insertRow(1)
+                self.friendsList.setRowHeight(1, 50)
+                self.friendsList.setCellWidget(
+                    1, 0, self.makeFriendButton(friends[i], 1))
+
+    def makeFriendButton(self, userID: str, isOnline: int):
+        friendButton = QToolButton()
+        friendButton.setIcon(QIcon('icon/friend.png'))
+        friendButton.setText('%010s %s' % (userID, '在线' if isOnline else '离线'))
+        friendButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        friendButton.setIconSize(QSize(40, 40))
+        friendButton.setFixedSize(180, 50)
+        friendButton.clicked.connect(lambda: self.newPage(userID))
+        # 根据是否上线设置按钮边框
+        if isOnline:
+            friendButton.setStyleSheet('''
+                QToolButton{
+                    border-left:9px solid green;
+                }
+            ''')
+        else:
+            friendButton.setStyleSheet('''
+                QToolButton{
+                    border-left:9px solid rgba(230, 230, 230);
+                }
+            ''')
+        return friendButton
 
     def offLine(self):
         try:
@@ -361,10 +406,32 @@ class ClientPage(QWidget):
         msgBox.exec_()
 
     def setOfflineStyle(self):
-        pass
+        self.isConnected.setText('离线')
+        self.isConnected.setStyleSheet('''
+            QToolButton{
+                font-size:25px;
+                font-family:微软雅黑;
+                color:#FF5252;
+            }
+            QToolButton:hover{
+                background-color:#FF5252;
+                color:white;
+            }
+        ''')
 
     def setOnlineStyle(self):
-        pass
+        self.isConnected.setText('在线')
+        self.isConnected.setStyleSheet('''
+            QToolButton{
+                font-size:25px;
+                font-family:微软雅黑;
+                color:#00796B;
+            }
+            QToolButton:hover{
+                background-color:#00796B;
+                color:white;
+            }
+        ''')
 
     def setMyStyleSheet(self):
         self.setStyleSheet('''
@@ -388,41 +455,127 @@ class ClientPage(QWidget):
             }
             '''
                                       )
-        self.connectButton.setStyleSheet('''
+        self.rightPage.setStyleSheet('''
+            QTableWidget{
+                border:0px;
+                
+            }
+            QWidget{
+                border:0px;
+                border-left:1px solid #BDBDBD;
+            }
+        ''')
+        self.menuBar.setStyleSheet('''
             QToolButton{
-                border-radius:10px;
-                border:1px solid #4CAF50;
-                background-color:white;
-                color:#4CAF50;
-                font-size:20px;
-                font-family:微软雅黑;
+                border:0px;
             }
             QToolButton:hover{
-                background-color:#4CAF50;
-                color:white;
+                background-color: rgba(230, 230, 230, 1);
+            }
+            QWidget{
+                border:0px;
             }
         ''')
-        self.isConnected.setStyleSheet('''
-            QLabel{
-                font-size:25px;
-                font-family:微软雅黑;
-                color:#D32F2F;
+        self.friendsList.setStyleSheet('''
+            QTableWidget{
+                border:0px;
             }
-        ''')
-        self.connectServer.setStyleSheet('''
             QToolButton{
-                border-radius:10px;
-                border:1px solid #0288D1;
-                background-color:white;
-                color:#0288D1;
-                font-size:20px;
-                font-family:微软雅黑;
+                border:0px;
+                font-family: 微软雅黑;
+                font-size: 20px;
             }
             QToolButton:hover{
-                background-color:#0288D1;
-                color:white;
+                background-color: rgba(230, 230, 230, 0.3);
+                
             }
         ''')
+
+        # self.connectServer.setStyleSheet('''
+        #     QToolButton{
+        #         border-radius:10px;
+        #         border:1px solid #0288D1;
+        #         background-color:white;
+        #         color:#0288D1;
+        #         font-size:20px;
+        #         font-family:微软雅黑;
+        #     }
+        #     QToolButton:hover{
+        #         background-color:#0288D1;
+        #         color:white;
+        #     }
+        # ''')
+
+
+class RecvMsg(QThread):
+    refreshFriends = pyqtSignal(list, list)
+
+    def __init__(self, master: ClientPage):
+        super().__init__()
+        self.master = master
+
+    def run(self):
+        '''
+        返回的消息格式为
+        {
+            'operation':'msg',
+            'message':list
+        }
+        message: [
+            {
+                source:str,
+                target:str,
+                text:str,
+                time:str,
+                operation:str
+            },
+            ...
+        ]
+        接收信息并发送至对应的聊天窗口
+        '''
+        while True:
+            try:
+                msgs = self.master.socket.recv(2048).decode('utf-8')
+                msgs = json.loads(msgs)
+
+                if msgs['operation'] == 'msg':
+                    # 先找到对应的聊天页面
+                    target_page = None
+                    for page in self.master._chat_pages:
+                        if msgs['source'] == page:
+                            target_page = self.master._chat_pages[page][1]
+                            break
+
+                    # TODO 如果对应的聊天页面没有开启则进入缓冲列表
+                    if target_page is None:
+                        continue
+
+                    # 收到消息的页面会有黄色提示
+                    self.master._chat_pages[page][0].setStyleSheet('''
+                        QToolButton{
+                            border-left:9px solid yellow;
+                        }
+                    ''')
+                    for msg in msgs['message']:
+                        target_page.messageBox.append(
+                            msg['time']+' ' + msg['source']+': '+msg['text'])
+
+                if msgs['operation'] == 'ans':
+                    pass
+
+                # 刷新好友列表
+                if msgs['operation'] == 'getFriends':
+                    self.refreshFriends.emit(msgs['friends'], msgs['state'])
+
+            except Exception as e:
+                print('Connection closed!')
+                print(msgs)
+                print(e)
+                # 清空socket变量
+                self.master.socket = None
+                # 显示未连接到服务器
+                self.master.setOfflineStyle()
+                break
 
 
 if __name__ == "__main__":

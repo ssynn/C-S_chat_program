@@ -39,7 +39,7 @@ class MainWindow(QWidget):
     # 登录按钮按下
     def loginFunction(self):
         _mes = self.login.getInfo()
-        self.userID = _mes['ID']
+        self.userInfo = {'ID':_mes['ID'], 'PASSWORD':_mes['PASSWORD']}
         self.socket = _mes['SOCKET']
         _mes['PASSWORD'] = pf.encrypt(_mes['PASSWORD'])
         self.isLogin = self.loginToServer(_mes)
@@ -65,8 +65,6 @@ class MainWindow(QWidget):
             self.sock.connect((address[0], int(address[1])))
 
             msg = {
-                'source': "%s:%d" % self.sock.getsockname(),
-                'target': info['SOCKET'],
                 'time': str(time.strftime('%Y-%m-%d %H:%M:%S')),
                 'operation': 'login',
                 'ID': info['ID'],
@@ -132,8 +130,6 @@ class MainWindow(QWidget):
             sock.connect((address[0], int(address[1])))
 
             msg = {
-                'source': "%s:%d" % sock.getsockname(),
-                'target': info['SOCKET'],
                 'time': str(time.strftime('%Y-%m-%d %H:%M:%S')),
                 'operation': 'signup',
                 'ID': info['ID'],
@@ -169,7 +165,7 @@ class MainWindow(QWidget):
 
     def display(self):
         # 显示登录界面
-        self.body = cp.ClientPage(self.userID, self.sock, self.socket)
+        self.body = cp.ClientPage(self.userInfo, self.sock, self.socket)
         self.body.setParent(self)
         self.body.setVisible(True)
 

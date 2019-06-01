@@ -7,12 +7,20 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QHBoxLayout, QSplitter, QTab
                              QToolButton, QLabel, QAbstractItemView, QHeaderView, QTableWidgetItem, QVBoxLayout, QTextBrowser, QTextEdit, QLineEdit, QMessageBox)
 from PyQt5.QtGui import QIcon, QColor, QFont
 from PyQt5.QtCore import Qt, QSize, QTimer
-
+from src import server
 
 class ServerPage(QWidget):
     def __init__(self):
         super().__init__()
         self.initUI()
+        self.show()
+        self.server = server.Server()
+        self.server.start()
+        self.setMyStyle()
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.refresh)
+        self.timer.start(1000)
 
     def initUI(self):
         self.body = QHBoxLayout()
@@ -32,6 +40,10 @@ class ServerPage(QWidget):
         self.body.setContentsMargins(0, 0, 0, 0)
 
         self.setLayout(self.body)
+        self.resize(500, 500)
+
+    def closeEvent(self, a0):
+        self.server.close()
 
     def setTable(self):
         self.messageBuffer = QTableWidget(1, 3)
@@ -75,7 +87,7 @@ class ServerPage(QWidget):
             QScrollBar::add-line{background:transparent;}
         ''')
 
-        self.onlineUser.setItem(0, 0, QTableWidgetItem('离线'))
+        self.onlineUser.setItem(0, 0, QTableWidgetItem('在线'))
         self.onlineUser.item(0, 0).setTextAlignment(Qt.AlignCenter)
         self.onlineUser.item(0, 0).setFont(QFont('微软雅黑', 15))
 
@@ -99,7 +111,7 @@ class ServerPage(QWidget):
             QScrollBar::add-line{background:transparent;}
         ''')
 
-        self.offlineUser.setItem(0, 0, QTableWidgetItem('在线'))
+        self.offlineUser.setItem(0, 0, QTableWidgetItem('离线'))
         self.offlineUser.item(0, 0).setTextAlignment(Qt.AlignCenter)
         self.offlineUser.item(0, 0).setFont(QFont('微软雅黑', 15))
 
@@ -111,8 +123,55 @@ class ServerPage(QWidget):
         '''
         每秒获取一次服务器的状态，把信息跟新到服务器
         '''
-        pass
+        info = self.server.get_info()
+        # print(info)
+        # 跟新在线用户
+        while self.onlineUser.rowCount() != 1:
+            self.onlineUser.removeRow(1)
+        for uid in info['online']:
+            idlabel = QTableWidgetItem(uid)
+            idlabel.setTextAlignment(Qt.AlignCenter)
+            self.onlineUser.insertRow(1)
+            self.onlineUser.setItem(1, 0, idlabel)
+        self.onlineUser.setAlternatingRowColors(True)
 
+        # 跟新离线用户
+        while self.offlineUser.rowCount() != 1:
+            self.offlineUser.removeRow(1)
+
+        for uid in info['offline']:
+            idlabel = QTableWidgetItem(uid)
+            idlabel.setTextAlignment(Qt.AlignCenter)
+            self.offlineUser.insertRow(1)
+            self.offlineUser.setItem(1, 0, idlabel)
+        self.offlineUser.setAlternatingRowColors(True)
+
+        # 跟新缓冲池
+        while self.messageBuffer.rowCount() != 1:
+            self.messageBuffer.removeRow(1)
+        for line in info['buffer']:
+            text = '['
+            for i in info['buffer'][line]:
+                text += i['text']
+                text += ']['
+            text += ']'
+            self.addBuffer(line[0], line[1], text)
+    
+    def addBuffer(self, f, t, text):
+        fLabel = QTableWidgetItem(f)
+        fLabel.setTextAlignment(Qt.AlignCenter)
+        tLabel = QTableWidgetItem(t)
+        tLabel.setTextAlignment(Qt.AlignCenter)
+        textLabel = QTableWidgetItem(text)
+        self.messageBuffer.insertRow(1)
+        self.messageBuffer.setItem(1, 0, fLabel)
+        self.messageBuffer.setItem(1, 1, tLabel)
+        self.messageBuffer.setItem(1, 2, textLabel)
+
+    def setMyStyle(self):
+        self.setStyleSheet('''
+            color:black;
+        ''')
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

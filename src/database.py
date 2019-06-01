@@ -77,7 +77,7 @@ def signup(user_message: dict) -> dict:
         return message
 
 
-def makeFriend(user1: str, user2: str) -> bool:
+def makeFriend(user1: str, user2: str) -> dict:
     '''
     先检查两个人是否已经成为朋友，然后建立朋友行, 传入的两个用户不能为同一个人
     '''
@@ -94,12 +94,12 @@ def makeFriend(user1: str, user2: str) -> bool:
 
         # 先查找用户是否存在
         cursor.execute('''
-        SELECT
+        SELECT *
         FROM users
         WHERE ID=? OR ID=?
         ''', newFriends)
         num = cursor.fetchall()
-        if num != 2:
+        if len(num) != 2:
             raise Exception('存在无效用户！')
 
         # 建立新朋友行
@@ -109,13 +109,35 @@ def makeFriend(user1: str, user2: str) -> bool:
             values(?,?)
             ''', newFriends)
         conn.commit()
+        conn.close()
         ans = {'answer': 'success'}
     except Exception as e:
         print('Make friends error!')
         print(e)
         ans = {'answer': 'fail', 'reason':str(e)}
     finally:
+        return ans
+
+
+def get_my_friends(userID) -> list:
+    ans = []
+    try:
+        conn = sqlite3.connect('./data/data.db')
+        cursor = conn.cursor()
+
+        # 建立新朋友行
+        cursor.execute('''
+            SELECT *
+            FROM friends
+            WHERE ID1 = ? or ID2 = ?
+            ''', [userID, userID])
+        ans = cursor.fetchall()
         conn.close()
+        ans = list(map(lambda x: x[0] if x[0] != userID else x[1], ans))
+    except Exception as e:
+        print('Search friends error!')
+        print(e)
+    finally:
         return ans
 
 
@@ -129,7 +151,7 @@ def get_all_users() -> list:
             FROM users
         ''')
         users = cursor.fetchall()
-        users = map(lambda x: x[0], users)
+        users = list(map(lambda x: x[0], users))
     except Exception as e:
         print(e)
     finally:
@@ -138,9 +160,19 @@ def get_all_users() -> list:
 
 
 if __name__ == "__main__":
-    get_all_users()
-    signup({
-        'ID':'2',
-        'PASSWORD':'1'
-    })
-    get_all_users()
+    # print(get_all_users())
+    # signup({
+    #     'ID':'5',
+    #     'PASSWORD':'1'
+    # })
+    # print(get_all_users())
+
+    # 交朋友测试
+    # print(makeFriend('1', '1'))
+    # print(makeFriend('1', '2'))
+    # print(makeFriend('1', '3'))
+    # print(makeFriend('1', '4'))
+
+    # 查找朋友测试
+    # print(get_my_friends('1'))
+    pass

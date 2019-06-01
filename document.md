@@ -39,7 +39,9 @@
 
 
 ## 数据交换格式
+
 <code>
+
 {
     operation:str,
     source:str,
@@ -47,10 +49,13 @@
     text:str,
     time:str,
 }
+
 </code>
+
 #### operation: 
-|msg|login|signup|friendRequest|confirmFriends|
-|:-:|:-:|:-:|:-:|:-:|
-|发送消息|登录|注册|好友申请|确认好友申请|
+|msg|login|signup|friendRequest|confirmFriends|getFriends|ans|
+|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+|发送消息|登录|注册|好友申请|确认好友申请|查找朋友|回复结果操作|
+
 #### source & target
 使用用户ID
