@@ -28,3 +28,9 @@ def encrypt(val):
     result = h.hexdigest()
     result = val
     return result
+
+
+# 分割socket
+def split_socket(socket: str) -> tuple:
+    socket = socket.split(':')
+    return (socket[0], int(socket[1]))

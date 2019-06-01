@@ -7,12 +7,11 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QHBoxLayout, QSplitter,
                              QToolButton, QLabel, QVBoxLayout, QTextBrowser, QTextEdit, QLineEdit, QMessageBox)
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtCore import Qt, QSize
+from src import public_function as pf
 
 # FIXME
 '''
-_chat_page 使用userID作为key
-与用户通讯不再使用socket
-source和target不再填写socket
+
 '''
 
 # TODO
@@ -23,6 +22,7 @@ toolbutton显示用户名
 接受好友请求
 删除好友
 '''
+
 
 def recvMsg(master):
     '''
@@ -62,15 +62,8 @@ def recvMsg(master):
             print(e)
             # 清空socket变量
             master.socket = None
-            # 显示未连接到服务器
-            master.isConnected.setText('未连接至服务器')
-            master.isConnected.setStyleSheet('''
-            QLabel{
-                font-size:25px;
-                font-family:微软雅黑;
-                color:#D32F2F;
-            }
-        ''')
+            # FIXME 显示未连接到服务器
+            
             break
 
 
@@ -78,7 +71,8 @@ class ClientPage(QWidget):
 
     def __init__(self, userID: str, sock, serverSocket):
         '''
-        继承从main_widget建立的tcp连接，获取用户名，服务器套接字
+        继承从main_widget建立的tcp连接
+        传入用户ID，TCP连接，服务器套接字
         '''
         super().__init__()
         self.userID = userID
@@ -189,14 +183,18 @@ class ClientPage(QWidget):
 
         return chatPage
 
-    def closePageFunction(self, sock):
-        chatButton, chatPage = self._chat_pages[sock]
+    def closePageFunction(self, userID):
+        chatButton, chatPage = self._chat_pages[userID]
         self.selectListLayout.removeWidget(chatButton)
         chatButton.deleteLater()
         chatPage.deleteLater()
-        self._chat_pages.pop(sock)
+        self._chat_pages.pop(userID)
 
+    # FIXME 这个函数基本上要全部重写
     def setRightPage(self):
+        '''
+        设置右边的元素
+        '''
         # 输入套接字
         self.inputSocket = QLineEdit()
         self.inputSocket.setText('输入套接字')
@@ -230,46 +228,45 @@ class ClientPage(QWidget):
         self.rightPage.setFixedWidth(200)
         self.rightPage.setLayout(self.rightPageLayout)
 
-    def newConnect(self):
+    def newConnect(self, userID, isOnline):
         '''
+        双击好友的图标, 传入用户ID
         创建新的聊天界面
         '''
+        pass
 
-        if self.inputSocket.text() in self._chat_pages:
-            self.refresh(self.inputSocket.text())
-            return
-
-        # 创建选择按钮
+        # 创建选择按钮 应该显示用户ID
         newChatButton = QToolButton()
-        newChatButton.setText(self.inputSocket.text())
+        newChatButton.setText(userID)
         newChatButton.setFixedSize(200, 50)
         newChatButton.clicked.connect(
             lambda: self.refresh(newChatButton.text()))
 
-        # 创建聊天页面
+        # 创建聊天页面 记录用户ID
         newchatPage = self.createChatPageContents()
         newchatPage.setParent(self.chatPage)
-        newchatPage.socketName = self.inputSocket.text()
+        newchatPage.userID = userID
 
-        # 把建立的聊天页面加入列表
-        self._chat_pages[self.inputSocket.text()] = (
+        # 把建立的聊天页面加入列表 key值为用户ID, value为（选择按钮，聊天界面）
+        self._chat_pages[userID] = (
             newChatButton, newchatPage)
         newchatPage.closePage.clicked.connect(
-            lambda: self.closePageFunction(newchatPage.socketName))
+            lambda: self.closePageFunction(userID))
 
         # 创建选择按钮
         self.selectListLayout.insertWidget(0, newChatButton)
 
-        self.refresh(self.inputSocket.text())
+        self.refresh(userID)
 
-    def refresh(self, socketName):
+    def refresh(self, userID):
         '''
-        展示当前选择的页面
+        隐藏其他聊天页面
+        显示当前选择的页面
         '''
-        # print(socketName)
-        for sock in self._chat_pages:
-            self._chat_pages[sock][1].setVisible(False)
-            self._chat_pages[sock][0].setStyleSheet('''
+
+        for UID in self._chat_pages:
+            self._chat_pages[UID][1].setVisible(False)
+            self._chat_pages[UID][0].setStyleSheet('''
             *{
                 background: white;
                 border-left:9px solid rgba(230, 230, 230);
@@ -278,11 +275,12 @@ class ClientPage(QWidget):
                 background-color: rgba(230, 230, 230, 0.3);
             }
             ''')
-        for sock in self._chat_pages:
-            if sock == socketName:
-                self.chatPageNow = self._chat_pages[sock][1]
-                self._chat_pages[sock][1].setVisible(True)
-                self._chat_pages[sock][0].setStyleSheet('''
+
+        for UID in self._chat_pages:
+            if UID == userID:
+                self.chatPageNow = self._chat_pages[UID][1]
+                self._chat_pages[UID][1].setVisible(True)
+                self._chat_pages[UID][0].setStyleSheet('''
                 QToolButton{
                     background-color: rgba(230, 230, 230, 0.7);
                     border-left:9px solid green;
@@ -296,24 +294,18 @@ class ClientPage(QWidget):
         连接服务器
         '''
         try:
+            # 如果连接已经断开,则与服务器新建立一个TCP连接
             if self.socket is None:
                 # 建立新的连接:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.connect(('127.0.0.1', 9999))
+                self.socket.connect(pf.split_socket(self.serverSocket))
 
             # 专门一个线程用于接受消息
             self.receiver = threading.Thread(target=recvMsg, args=(self,))
             self.receiver.start()
 
-            # 设置页面信息
-            self.isConnected.setText('已连接至服务器')
-            self.isConnected.setStyleSheet('''
-            QLabel{
-                font-size:25px;
-                font-family:微软雅黑;
-                color:#689F38;
-            }
-        ''')
+            # FIXME 设置在线显示
+            
         except Exception as e:
             print('连接出现错误')
             print(e)
@@ -322,6 +314,7 @@ class ClientPage(QWidget):
         try:
             self.socket.send(b'exit')
             self.socket.close()
+            self.socket = None
         except Exception as e:
             print(e)
 
@@ -339,8 +332,8 @@ class ClientPage(QWidget):
         '''
         # 发送数据:
         msg = {
-            'source': "%s:%d" % self.socket.getsockname(),
-            'target': self.chatPageNow.socketName,
+            'source': self.userID,
+            'target': self.chatPageNow.userID,
             'text': self.chatPageNow.inputBox.toPlainText(),
             'time': str(time.strftime('%Y-%m-%d %H:%M:%S')),
             'operation': 'msg'
@@ -366,6 +359,12 @@ class ClientPage(QWidget):
         )
         msgBox.addButton("确认", QMessageBox.AcceptRole)
         msgBox.exec_()
+
+    def setOfflineStyle(self):
+        pass
+
+    def setOnlineStyle(self):
+        pass
 
     def setMyStyleSheet(self):
         self.setStyleSheet('''
