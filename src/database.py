@@ -80,6 +80,7 @@ def signup(user_message: dict) -> dict:
 def makeFriend(user1: str, user2: str) -> dict:
     '''
     先检查两个人是否已经成为朋友，然后建立朋友行, 传入的两个用户不能为同一个人
+    返回{'answer': 'fail/seccuss', 'reason':str(e)}
     '''
     newFriends = [user1, user2]
     newFriends.sort()
@@ -100,7 +101,7 @@ def makeFriend(user1: str, user2: str) -> dict:
         ''', newFriends)
         num = cursor.fetchall()
         if len(num) != 2:
-            raise Exception('存在无效用户！')
+            raise Exception('无效用户！')
 
         # 建立新朋友行
         cursor.execute('''

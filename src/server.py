@@ -13,6 +13,7 @@ class Server():
         self._socket_pool = dict()
         self._id_to_socket = dict()
         self._socket_to_id = dict()
+        self._need_to_refresh = []
         self.isAlive = True
         self.isChanged = False
 
@@ -29,65 +30,40 @@ class Server():
     # FIXME 主进程处理消息池的方法
     def handle(self):
         '''
-        0.1s 检查一次缓冲池，把消息发送给对应的客户端
+        1s 检查一次缓冲池，把消息发送给对应的客户端
+        检查是否存在需要刷星好友列表的客户端
         '''
         while True and self.isAlive:
             time.sleep(1)
-            
-            # print("Online: " + str(self._socket_pool.keys()))
+
+            # 把消息发送给对应的客户端
             for head in self._msg_buffer:
                 # 如果目标消息在socket池则把消息发送到对应的socket地址
                 targetSocket = self.idToSocket(head[1])
-                if targetSocket in self._socket_pool and self._msg_buffer[head]!=[]:
+                # 如果目标ID在self._id_to_socket 则用户已经进入登录状态
+                if head[1] in self._id_to_socket and self._msg_buffer[head] != []:
                     try:
                         msg = {
-                            'operation':'msg',
-                            'source':head[0],
-                            'message':self._msg_buffer[head]
+                            'operation': 'msg',
+                            'source': head[0],
+                            'message': self._msg_buffer[head]
                         }
-                        self._socket_pool[targetSocket].send(json.dumps(msg).encode())
+                        self._socket_pool[targetSocket].send(
+                            json.dumps(msg).encode())
                         self._msg_buffer[head] = []
                     except Exception as e:
                         print(str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 发送失败')
-            
+
+            # 检查是否存在需要刷星好友列表的客户端
+            for user in self._need_to_refresh:
+                if user in self._id_to_socket:
+                    targetSocket = self.idToSocket(head[1])
+                    self._socket_pool[targetSocket].send(json.dumps({'operation':'refresh'}).encode())
+            self._need_to_refresh = []
+
             # 在线用户发生改变，需要通知客户端好友列表发生改变
             if self.isChanged:
-
-
                 self.isChanged = False
-
-    # 获取发到目标套接字的消息
-    def get_info(self) -> dict:
-        '''
-        获取在线的用户，离线的用户，缓冲池
-        ans = {
-            'buffer':list,
-            'online':list,
-            'offline':list
-        }
-        '''
-        ans = {
-            'buffer':self._msg_buffer,
-            'online':None,
-            'offline':None
-        }
-        users_all = database.get_all_users()
-        
-        # 生成在线用户表
-        onlineUsers = []
-        for sock in self._socket_pool:
-            onlineUsers.append(self.socketToId(sock))
-        
-        # 生成离线用户表
-        offlineUsers = []
-        for user in users_all:
-            if user not in onlineUsers:
-                offlineUsers.append(user)
-        
-        ans['online'] = onlineUsers
-        ans['offline'] = offlineUsers
-
-        return ans
 
     def socketToId(self, socket) -> str:
         '''
@@ -116,7 +92,8 @@ class Server():
         print("Waiting for connection")
 
         # 接受TCP连接请求
-        recv = threading.Thread(target=waiting_for_connect, args=(self.s, self))
+        recv = threading.Thread(
+            target=waiting_for_connect, args=(self.s, self))
         recv.start()
 
         # 每秒更新消息队列里的消息
@@ -126,7 +103,6 @@ class Server():
     def close(self):
         self.s.close()
         self.isAlive = False
-
 
 
 def tcplink(sock, addr, master: Server):
@@ -153,7 +129,7 @@ def tcplink(sock, addr, master: Server):
             if data['operation'] == 'msg':
                 # 把收到的数据放入缓冲池
                 master.push_msg(data, (data['source'], data['target']))
-            
+
             # 登录操作
             if data['operation'] == 'login':
                 userID = data['ID']
@@ -162,7 +138,7 @@ def tcplink(sock, addr, master: Server):
                 sock.send(json.dumps(ans).encode())
                 master._socket_to_id[mySocket] = userID
                 master._id_to_socket[userID] = mySocket
-            
+
             # 注册操作
             if data['operation'] == 'signup':
                 message = database.signup(data)
@@ -178,12 +154,19 @@ def tcplink(sock, addr, master: Server):
                     state.append(int(master.isOnline(user)))
 
                 ans = {
-                    'operation':'getFriends',
-                    'friends':friends,
-                    'state':state
+                    'operation': 'getFriends',
+                    'friends': friends,
+                    'state': state
                 }
-                print(ans)
+                # print(ans)
                 sock.send(json.dumps(ans).encode())
+
+            # 建立新的好友关系
+            if data['operation'] == 'makeFriends':
+                ans = database.makeFriend(userID, data['ID'])
+                ans['operation'] = 'makeFriends'
+                sock.send(json.dumps(ans).encode())
+                master._need_to_refresh.append(data['ID'])
 
     except Exception as e:
         print(e)

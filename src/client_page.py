@@ -6,7 +6,8 @@ import time
 from PyQt5.QtWidgets import (QApplication, QWidget, QHBoxLayout, QSplitter,
                              QTableWidget, QTableWidgetItem, QAbstractItemView,
                              QToolButton, QLabel, QVBoxLayout, QTextBrowser,
-                             QTextEdit, QLineEdit, QMessageBox, QHeaderView)
+                             QTextEdit, QLineEdit, QMessageBox, QHeaderView,
+                             QInputDialog)
 from PyQt5.QtGui import QIcon, QColor, QFont
 from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
 from src import public_function as pf
@@ -185,10 +186,10 @@ class ClientPage(QWidget):
 
     def setMenuBar(self):
         self.friend = QToolButton()
-        self.friend.setIcon(QIcon('icon/friend.png'))
+        self.friend.setIcon(QIcon('icon/newFriend.png'))
         self.friend.setFixedSize(40, 40)
         self.friend.setIconSize(QSize(40, 40))
-        # FIXME self.friend.clicked.connect()
+        self.friend.clicked.connect(self.makeFriends)
 
         self.newMessage = QToolButton()
         self.newMessage.setIcon(QIcon('icon/msg.png'))
@@ -212,6 +213,19 @@ class ClientPage(QWidget):
         self.menuBar.setContentsMargins(0, 0, 0, 0)
 
         self.rightPageLayout.addWidget(self.menuBar)
+
+    def makeFriends(self):
+        '''
+        添加好友方法
+        单方面添加好友
+        '''
+        text, ok = QInputDialog.getText(self, '添加好友:', '输入好友ID')
+        if ok and len(text) != 0:
+            msg = {
+                'operation':'makeFriends',
+                'ID':text
+            }
+            self.socket.send(json.dumps(msg).encode())
 
     def newPage(self, userID):
         '''
@@ -538,6 +552,7 @@ class RecvMsg(QThread):
                 msgs = self.master.socket.recv(2048).decode('utf-8')
                 msgs = json.loads(msgs)
 
+                # 接收消息
                 if msgs['operation'] == 'msg':
                     # 先找到对应的聊天页面
                     target_page = None
@@ -560,12 +575,25 @@ class RecvMsg(QThread):
                         target_page.messageBox.append(
                             msg['time']+' ' + msg['source']+': '+msg['text'])
 
+                # 接收服务器结果
                 if msgs['operation'] == 'ans':
                     pass
 
                 # 刷新好友列表
                 if msgs['operation'] == 'getFriends':
                     self.refreshFriends.emit(msgs['friends'], msgs['state'])
+
+                # 添加好友的结果
+                if msgs['operation'] == 'makeFriends':
+                    if msgs['answer'] == 'success':
+                        self.master.socket.send(json.dumps({'operation': 'getFriends'}).encode())
+                        self.master.errorBox('添加成功')
+                    else:
+                        self.master.errorBox(msgs['reason'])
+
+                # 服务器通知客户端刷新好友列表
+                if msgs['operation'] == 'refresh':
+                    socket.send(json.dumps({'operation': 'getFriends'}).encode())
 
             except Exception as e:
                 print('Connection closed!')
