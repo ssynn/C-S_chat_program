@@ -17,7 +17,6 @@ class Server():
         self.isAlive = True
         self.isChanged = False
 
-    # 把收到的消息放入消息缓冲池
     def push_msg(self, msg: dict, head: tuple):
         '''
         head (userID1, userID2)
@@ -36,10 +35,11 @@ class Server():
         while True and self.isAlive:
             time.sleep(1)
 
-            # 把消息发送给对应的客户端
+            # FIXME 把消息发送给对应的客户端
             for head in self._msg_buffer:
                 # 如果目标消息在socket池则把消息发送到对应的socket地址
                 targetSocket = self.idToSocket(head[1])
+                print(self._id_to_socket)
                 # 如果目标ID在self._id_to_socket 则用户已经进入登录状态
                 if head[1] in self._id_to_socket and self._msg_buffer[head] != []:
                     try:
@@ -54,7 +54,7 @@ class Server():
                     except Exception as e:
                         print(str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 发送失败')
 
-            # 检查是否存在需要刷星好友列表的客户端
+            # 检查是否存在需要刷新好友列表的客户端
             for user in self._need_to_refresh:
                 if user in self._id_to_socket:
                     targetSocket = self.idToSocket(head[1])
@@ -65,20 +65,50 @@ class Server():
             if self.isChanged:
                 self.isChanged = False
 
-    def socketToId(self, socket) -> str:
+    def socketToId(self, _socket) -> str:
         '''
         把socket转换为用户ID
         '''
-        return self._socket_to_id[socket]
+        if _socket in self._socket_to_id:
+            return self._socket_to_id[_socket]
+        return -1
 
     def idToSocket(self, _id):
-        return self._id_to_socket[_id]
+        if _id in self._id_to_socket:
+            return self._id_to_socket[_id]
+        return -1
 
     def isOnline(self, userId):
         '''
         检查用户是否在线
         '''
         return userId in self._id_to_socket
+
+    def get_info(self) -> dict:
+        '''
+        获取在线的用户，离线的用户，缓冲池
+        '''
+        ans = {
+            'buffer':self._msg_buffer,
+            'online':None,
+            'offline':None
+        }
+        users_all = database.get_all_users()
+        
+        # 生成在线用户表
+        onlineUsers = []
+        for sock in self._socket_pool:
+            onlineUsers.append(self.socketToId(sock))
+        
+        # 生成离线用户表
+        offlineUsers = []
+        for user in users_all:
+            if user not in onlineUsers:
+                offlineUsers.append(user)
+        
+        ans['online'] = onlineUsers
+        ans['offline'] = offlineUsers
+        return ans
 
     # 启动服务器
     def start(self):
@@ -101,6 +131,8 @@ class Server():
         display.start()
 
     def close(self):
+        print('Server closed')
+        self.s.shutdown(2)
         self.s.close()
         self.isAlive = False
 

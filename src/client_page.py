@@ -19,9 +19,7 @@ from src import public_function as pf
 
 # TODO
 '''
-好友列表
-申请好友
-toolbutton显示用户名
+打开未读消息的窗口
 接受好友请求
 删除好友
 '''
@@ -40,6 +38,7 @@ class ClientPage(QWidget):
         self.serverSocket = serverSocket
         self._chat_pages = dict()
         self.chatPageNow = None
+        self._unread_buffer = []
         self.initUI()
         self.setMyStyleSheet()
         self.onLine()
@@ -150,7 +149,7 @@ class ClientPage(QWidget):
         chatPage.deleteLater()
         self._chat_pages.pop(userID)
 
-    # FIXME 这个函数基本上要全部重写
+    # 这个函数基本上要全部重写
     def setRightPage(self):
         '''
         设置右边的元素
@@ -173,9 +172,13 @@ class ClientPage(QWidget):
             QScrollBar::add-line{background:transparent;}
         ''')
 
-        self.friendsList.setItem(0, 0, QTableWidgetItem('好友列表'))
-        self.friendsList.item(0, 0).setTextAlignment(Qt.AlignCenter)
-        self.friendsList.item(0, 0).setFont(QFont('微软雅黑', 15))
+        self.friendHead = QToolButton()
+        self.friendHead.setText('好友列表')
+        self.friendHead.setFixedSize(180, 50)
+        self.friendHead.clicked.connect(self.getFrineds)
+
+        self.friendsList.setCellWidget(0, 0, self.friendHead)
+        self.friendsList.setRowHeight(0, 50)
 
         self.rightPageLayout = QVBoxLayout()
         self.rightPageLayout.addWidget(self.friendsList)
@@ -195,7 +198,7 @@ class ClientPage(QWidget):
         self.newMessage.setIcon(QIcon('icon/msg.png'))
         self.newMessage.setFixedSize(45, 40)
         self.newMessage.setIconSize(QSize(40, 40))
-        # FIXME self.newMessage.clicked.connect()
+        self.newMessage.clicked.connect(self.openUnreadMessage)
 
         self.isConnected = QToolButton()
         self.isConnected.setFixedSize(70, 40)
@@ -222,12 +225,12 @@ class ClientPage(QWidget):
         text, ok = QInputDialog.getText(self, '添加好友:', '输入好友ID')
         if ok and len(text) != 0:
             msg = {
-                'operation':'makeFriends',
-                'ID':text
+                'operation': 'makeFriends',
+                'ID': text
             }
             self.socket.send(json.dumps(msg).encode())
 
-    def newPage(self, userID):
+    def newPage(self, userID, needRefresh=True, msgs=None):
         '''
         双击好友的图标, 传入用户ID
         创建新的聊天界面
@@ -257,7 +260,10 @@ class ClientPage(QWidget):
         # 创建选择按钮
         self.selectListLayout.insertWidget(0, newChatButton)
 
-        self.refresh(userID)
+        if needRefresh:
+            self.refresh(userID)
+        else:
+            pass
 
     def refresh(self, userID):
         '''
@@ -290,6 +296,10 @@ class ClientPage(QWidget):
 
                 break
 
+    def getFrineds(self):
+        if self.socket:
+            self.socket.send(json.dumps({'operation': 'getFriends'}).encode())
+
     def onLine(self):
         '''
         连接服务器
@@ -315,6 +325,9 @@ class ClientPage(QWidget):
             # 专门一个线程用于接受消息
             self.receiver = RecvMsg(self)
             self.receiver.refreshFriends.connect(self.makeFriendList)
+            self.receiver.messages.connect(self.errorBox)
+            self.receiver.unreadMessages.connect(
+                lambda m: self.unreadMessages(m))
             self.receiver.start()
 
             # 设置在线显示
@@ -323,7 +336,30 @@ class ClientPage(QWidget):
         except Exception as e:
             print('连接出现错误')
             print(e)
+            self.socket = None
             self.setOfflineStyle()
+
+    def unreadMessages(self, msgs: list):
+        '''
+        收到了没有建立聊天窗口的消息，由这个方法处理
+        '''
+        self.newMessage.setStyleSheet('''
+            background-color:#FFEB3B;
+        ''')
+        self._unread_buffer.append(msgs)
+
+    def openUnreadMessage(self, msgs:list):
+        '''
+        打开对应未读消息的窗口
+        对于每一条消息 
+        if 没有打开对应的窗口：
+            新建窗口
+        添加消息
+        '''
+        self.newMessage.setStyleSheet('''
+            background-color:white;
+        ''')
+
 
     def makeFriendList(self, friends: list, isOnline: list):
         '''
@@ -340,7 +376,7 @@ class ClientPage(QWidget):
                     1, 0, self.makeFriendButton(friends[i], 0))
 
         for i in range(len(friends)):
-            if isOnline == 1:
+            if isOnline[i] == 1:
                 self.friendsList.insertRow(1)
                 self.friendsList.setRowHeight(1, 50)
                 self.friendsList.setCellWidget(
@@ -355,10 +391,10 @@ class ClientPage(QWidget):
         friendButton.setFixedSize(180, 50)
         friendButton.clicked.connect(lambda: self.newPage(userID))
         # 根据是否上线设置按钮边框
-        if isOnline:
+        if isOnline == 1:
             friendButton.setStyleSheet('''
                 QToolButton{
-                    border-left:9px solid green;
+                    border-left:9px solid #03A9F4;
                 }
             ''')
         else:
@@ -504,6 +540,13 @@ class ClientPage(QWidget):
                 
             }
         ''')
+        self.friendHead.setStyleSheet('''
+        QToolButton{
+            border:0px;
+            font-family: 微软雅黑;
+            font-size: 20px;
+        }
+        ''')
 
         # self.connectServer.setStyleSheet('''
         #     QToolButton{
@@ -523,6 +566,8 @@ class ClientPage(QWidget):
 
 class RecvMsg(QThread):
     refreshFriends = pyqtSignal(list, list)
+    messages = pyqtSignal(str)
+    unreadMessages = pyqtSignal(list)
 
     def __init__(self, master: ClientPage):
         super().__init__()
@@ -547,6 +592,7 @@ class RecvMsg(QThread):
         ]
         接收信息并发送至对应的聊天窗口
         '''
+        msgs = None
         while True:
             try:
                 msgs = self.master.socket.recv(2048).decode('utf-8')
@@ -561,9 +607,9 @@ class RecvMsg(QThread):
                             target_page = self.master._chat_pages[page][1]
                             break
 
-                    # TODO 如果对应的聊天页面没有开启则进入缓冲列表
+                    # 如果对应的聊天页面没有开启则进入缓冲列表
                     if target_page is None:
-                        continue
+                        self.unreadMessages.emit(msgs['message'])
 
                     # 收到消息的页面会有黄色提示
                     self.master._chat_pages[page][0].setStyleSheet('''
@@ -586,14 +632,16 @@ class RecvMsg(QThread):
                 # 添加好友的结果
                 if msgs['operation'] == 'makeFriends':
                     if msgs['answer'] == 'success':
-                        self.master.socket.send(json.dumps({'operation': 'getFriends'}).encode())
-                        self.master.errorBox('添加成功')
+                        self.master.socket.send(json.dumps(
+                            {'operation': 'getFriends'}).encode())
+                        self.messages.emit('添加成功')
                     else:
-                        self.master.errorBox(msgs['reason'])
+                        self.messages.emit(msgs['reason'])
 
                 # 服务器通知客户端刷新好友列表
                 if msgs['operation'] == 'refresh':
-                    socket.send(json.dumps({'operation': 'getFriends'}).encode())
+                    socket.send(json.dumps(
+                        {'operation': 'getFriends'}).encode())
 
             except Exception as e:
                 print('Connection closed!')
