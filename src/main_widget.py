@@ -44,6 +44,7 @@ class MainWindow(QWidget):
         _mes['PASSWORD'] = pf.encrypt(_mes['PASSWORD'])
         self.isLogin = self.loginToServer(_mes)
         if self.isLogin:
+            self.setWindowTitle('欢迎使用CS聊天程序：'+self.userInfo['ID'])
             self.login.setVisible(False)
             self.display()
             print('登录成功！')
@@ -65,7 +66,6 @@ class MainWindow(QWidget):
             self.sock.connect((address[0], int(address[1])))
 
             msg = {
-                'time': str(time.strftime('%Y-%m-%d %H:%M:%S')),
                 'operation': 'login',
                 'ID': info['ID'],
                 'PASSWORD': info['PASSWORD']

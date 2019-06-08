@@ -53,9 +53,9 @@
 </code>
 
 #### operation: 
-|msg|login|signup|makeFriends|confirmFriends|getFriends|ans|refresh|
-|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-|发送消息|登录|注册|好友申请|确认好友申请|查找朋友|回复结果操作|跟新好友列表|
+|msg|login|signup|makeFriends|confirmFriends|getFriends|ans|refresh|deleteFriend|
+|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+|发送消息|登录|注册|好友申请|确认好友申请|查找朋友|回复结果操作|跟新好友列表|删除好友|
 
 #### source & target
 使用用户ID

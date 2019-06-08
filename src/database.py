@@ -23,7 +23,7 @@ def login(user_message: dict) -> bool:
             user_message['PASSWORD']
         ))
         temp = cursor.fetchall()
-        if len(temp) == 0:
+        if len(temp) == 1:
             ans = {'answer': 'success'}
         else:
             ans = {'answer': 'fail'}
@@ -160,6 +160,43 @@ def get_all_users() -> list:
         return users
 
 
+def delete_friend(user1, user2) -> dict():
+    '''
+    删除两个用户之间的好友关系
+    '''
+    newFriends = [user1, user2]
+    newFriends.sort()
+    ans = None
+    try:
+        conn = sqlite3.connect('./data/data.db')
+        cursor = conn.cursor()
+
+        # 先查找关系是否存在
+        cursor.execute('''
+            SELECT *
+            FROM friends
+            WHERE ID1 = ? and ID2 = ?
+            ''', newFriends)
+        num = cursor.fetchall()
+        if len(num) != 1:
+            raise Exception('用户间并非好友！')
+
+        # 建立新朋友行
+        cursor.execute('''
+            DELETE
+            FROM friends
+            WHERE ID1=? and ID2=?
+            ''', newFriends)
+        conn.commit()
+        conn.close()
+        ans = {'answer': 'success'}
+    except Exception as e:
+        print('Delete friends error!')
+        print(e)
+        ans = {'answer': 'fail', 'reason':str(e)}
+    finally:
+        return ans
+
 if __name__ == "__main__":
     # print(get_all_users())
     # signup({
@@ -174,6 +211,8 @@ if __name__ == "__main__":
     # print(makeFriend('1', '3'))
     # print(makeFriend('1', '4'))
 
-    # 查找朋友测试
-    # print(get_my_friends('1'))
+    # 删除朋友测试
+    print(get_my_friends('1'))
+    print(delete_friend('1', '2'))
+    print(get_my_friends('1'))
     pass

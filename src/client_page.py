@@ -7,8 +7,8 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QHBoxLayout, QSplitter,
                              QTableWidget, QTableWidgetItem, QAbstractItemView,
                              QToolButton, QLabel, QVBoxLayout, QTextBrowser,
                              QTextEdit, QLineEdit, QMessageBox, QHeaderView,
-                             QInputDialog)
-from PyQt5.QtGui import QIcon, QColor, QFont
+                             QInputDialog, QMenu, QAction)
+from PyQt5.QtGui import QIcon, QColor, QFont, QCursor
 from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
 from src import public_function as pf
 
@@ -149,7 +149,6 @@ class ClientPage(QWidget):
         chatPage.deleteLater()
         self._chat_pages.pop(userID)
 
-    # 这个函数基本上要全部重写
     def setRightPage(self):
         '''
         设置右边的元素
@@ -230,7 +229,7 @@ class ClientPage(QWidget):
             }
             self.socket.send(json.dumps(msg).encode())
 
-    def newPage(self, userID, needRefresh=True, msgs=None):
+    def newPage(self, userID, needRefresh=True):
         '''
         双击好友的图标, 传入用户ID
         创建新的聊天界面
@@ -260,7 +259,7 @@ class ClientPage(QWidget):
         # 创建选择按钮
         self.selectListLayout.insertWidget(0, newChatButton)
 
-        if needRefresh:
+        if needRefresh or self.chatPageNow is None:
             self.refresh(userID)
         else:
             pass
@@ -346,9 +345,9 @@ class ClientPage(QWidget):
         self.newMessage.setStyleSheet('''
             background-color:#FFEB3B;
         ''')
-        self._unread_buffer.append(msgs)
+        self._unread_buffer += msgs
 
-    def openUnreadMessage(self, msgs:list):
+    def openUnreadMessage(self, msgs: list):
         '''
         打开对应未读消息的窗口
         对于每一条消息 
@@ -359,7 +358,30 @@ class ClientPage(QWidget):
         self.newMessage.setStyleSheet('''
             background-color:white;
         ''')
+        for item in self._unread_buffer:
+            if item['source'] not in self._chat_pages:
+                self.newPage(item['source'], False)
 
+            # 先找到对应的聊天页面
+            target_page = None
+            if item['source'] in self._chat_pages:
+                target_page = self._chat_pages[item['source']][1]
+
+            # 如果对应的聊天页面没有开启则进入缓冲列表
+            if target_page is None:
+                self.unreadMessages.emit(item['message'])
+
+            # 收到消息的页面会有黄色提示
+            self._chat_pages[item['source']][0].setStyleSheet('''
+                QToolButton{
+                    border-left:9px solid yellow;
+                }
+                QToolButton:hover{
+                    background-color: rgba(230, 230, 230, 0.3);
+                }
+            ''')
+            target_page.messageBox.append(
+                item['time']+' ' + item['source']+': '+item['text'])
 
     def makeFriendList(self, friends: list, isOnline: list):
         '''
@@ -383,27 +405,16 @@ class ClientPage(QWidget):
                     1, 0, self.makeFriendButton(friends[i], 1))
 
     def makeFriendButton(self, userID: str, isOnline: int):
-        friendButton = QToolButton()
-        friendButton.setIcon(QIcon('icon/friend.png'))
-        friendButton.setText('%010s %s' % (userID, '在线' if isOnline else '离线'))
-        friendButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        friendButton.setIconSize(QSize(40, 40))
-        friendButton.setFixedSize(180, 50)
-        friendButton.clicked.connect(lambda: self.newPage(userID))
-        # 根据是否上线设置按钮边框
-        if isOnline == 1:
-            friendButton.setStyleSheet('''
-                QToolButton{
-                    border-left:9px solid #03A9F4;
-                }
-            ''')
-        else:
-            friendButton.setStyleSheet('''
-                QToolButton{
-                    border-left:9px solid rgba(230, 230, 230);
-                }
-            ''')
-        return friendButton
+        return FriendButton(self, userID, isOnline)
+
+    def deleteFriend(self, userID: str):
+        msg = {
+            'operation': 'deleteFriend',
+            'friend':userID
+        }
+        self.socket.send(json.dumps(msg).encode())
+        print(f'delete: {userID}')
+        self.getFrineds()
 
     def offLine(self):
         try:
@@ -443,7 +454,6 @@ class ClientPage(QWidget):
                 str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 发送失败')
             print(e)
 
-    # 错误提示框
     def errorBox(self, mes: str):
         msgBox = QMessageBox(
             QMessageBox.Warning,
@@ -563,6 +573,14 @@ class ClientPage(QWidget):
         #     }
         # ''')
 
+    def setGetMessageStyleSheet(self, userID):
+        if self.chatPageNow.userID != userID:
+            self._chat_pages[userID][0].setStyleSheet('''
+                QToolButton{
+                    border-left:9px solid yellow;
+                }
+            ''')
+
 
 class RecvMsg(QThread):
     refreshFriends = pyqtSignal(list, list)
@@ -602,21 +620,18 @@ class RecvMsg(QThread):
                 if msgs['operation'] == 'msg':
                     # 先找到对应的聊天页面
                     target_page = None
-                    for page in self.master._chat_pages:
-                        if msgs['source'] == page:
-                            target_page = self.master._chat_pages[page][1]
-                            break
+                    if msgs['source'] in self.master._chat_pages:
+                        target_page = self.master._chat_pages[msgs['source']][1]
 
                     # 如果对应的聊天页面没有开启则进入缓冲列表
                     if target_page is None:
                         self.unreadMessages.emit(msgs['message'])
+                        continue
 
                     # 收到消息的页面会有黄色提示
-                    self.master._chat_pages[page][0].setStyleSheet('''
-                        QToolButton{
-                            border-left:9px solid yellow;
-                        }
-                    ''')
+                    self.master.setGetMessageStyleSheet(msgs['source'])
+
+                    # 把消息填入消息框
                     for msg in msgs['message']:
                         target_page.messageBox.append(
                             msg['time']+' ' + msg['source']+': '+msg['text'])
@@ -640,7 +655,7 @@ class RecvMsg(QThread):
 
                 # 服务器通知客户端刷新好友列表
                 if msgs['operation'] == 'refresh':
-                    socket.send(json.dumps(
+                    self.master.socket.send(json.dumps(
                         {'operation': 'getFriends'}).encode())
 
             except Exception as e:
@@ -652,6 +667,45 @@ class RecvMsg(QThread):
                 # 显示未连接到服务器
                 self.master.setOfflineStyle()
                 break
+
+
+class FriendButton(QToolButton):
+    def __init__(self, master: ClientPage, userID: str, isOnline: int):
+        super().__init__()
+        self.master = master
+        self.userID = userID
+        self.setIcon(QIcon('icon/friend.png'))
+        self.setText('%010s %s' % (userID, '在线' if isOnline else '离线'))
+        self.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.setIconSize(QSize(40, 40))
+        self.setFixedSize(180, 50)
+        # 根据是否上线设置按钮边框
+        if isOnline == 1:
+            self.setStyleSheet('''
+                QToolButton{
+                    border-left:9px solid #03A9F4;
+                }
+            ''')
+        else:
+            self.setStyleSheet('''
+                QToolButton{
+                    border-left:9px solid rgba(230, 230, 230);
+                }
+            ''')
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.master.newPage(self.userID)
+        else:
+            self.context()
+
+    def context(self):
+        item = QAction('删除好友', self)
+        item.triggered.connect(lambda:self.master.deleteFriend(self.userID))
+
+        menu = QMenu()
+        menu.addAction(item)
+        menu.exec_(QCursor.pos())
 
 
 if __name__ == "__main__":

@@ -57,8 +57,9 @@ class Server():
             # 检查是否存在需要刷新好友列表的客户端
             for user in self._need_to_refresh:
                 if user in self._id_to_socket:
-                    targetSocket = self.idToSocket(head[1])
+                    targetSocket = self.idToSocket(user)
                     self._socket_pool[targetSocket].send(json.dumps({'operation':'refresh'}).encode())
+                    print(user)
             self._need_to_refresh = []
 
             # 在线用户发生改变，需要通知客户端好友列表发生改变
@@ -199,6 +200,13 @@ def tcplink(sock, addr, master: Server):
                 ans['operation'] = 'makeFriends'
                 sock.send(json.dumps(ans).encode())
                 master._need_to_refresh.append(data['ID'])
+
+            # 删除好友
+            if data['operation'] == 'deleteFriend':
+                msg = database.delete_friend(userID, data['friend'])
+                msg['operation'] = 'deleteFriend'
+                sock.send(json.dumps(ans).encode())
+                master._need_to_refresh.append(data['friend'])
 
     except Exception as e:
         print(e)

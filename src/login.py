@@ -29,7 +29,7 @@ class Login(QWidget):
         # 学号输入框
         self.accountInput = QLineEdit()
         self.accountInput.setFixedSize(400, 50)
-        self.accountInput.setText('学号')
+        self.accountInput.setText('账号')
         self.accountInput.setTextMargins(5, 5, 5, 5)
         self.accountInput.mousePressEvent = lambda x: self.inputClick(self.accountInput)
         # self.accountInput.setClearButtonEnabled(True)
@@ -86,7 +86,7 @@ class Login(QWidget):
         self.setMyStyle()
 
     def inputClick(self, e):
-        if e.text() == '学号' or e.text() == '******':
+        if e.text() == '账号' or e.text() == '******':
             e.setText('')
 
     def getInfo(self):
