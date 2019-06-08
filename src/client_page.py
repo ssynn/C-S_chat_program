@@ -436,6 +436,11 @@ class ClientPage(QWidget):
         }
         operation:msg(发送信息)
         '''
+        # 文字长度不能大于100
+        if len(self.chatPageNow.inputBox.toPlainText()) > 100:
+            self.errorBox('消息字长度不能大于100！')
+            return
+
         # 发送数据:
         msg = {
             'source': self.userID,
