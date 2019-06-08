@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QHBoxLayout, QSplitter,
 from PyQt5.QtGui import QIcon, QColor, QFont, QCursor
 from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
 from src import public_function as pf
+from src import message_box as msgB
 
 # FIXME
 '''
@@ -19,9 +20,6 @@ from src import public_function as pf
 
 # TODO
 '''
-打开未读消息的窗口
-接受好友请求
-删除好友
 '''
 
 
@@ -81,7 +79,7 @@ class ClientPage(QWidget):
 
     def createChatPageContents(self):
         # 消息框
-        messageBox = QTextBrowser()
+        messageBox = msgB.MessageBox()
         messageBox.setFixedHeight(400)
 
         # 输入框
@@ -327,6 +325,7 @@ class ClientPage(QWidget):
             self.receiver.messages.connect(self.errorBox)
             self.receiver.unreadMessages.connect(
                 lambda m: self.unreadMessages(m))
+            self.receiver.userMessage.connect(lambda x,s: self.chatPageNow.messageBox.append(x, s))
             self.receiver.start()
 
             # 设置在线显示
@@ -380,8 +379,7 @@ class ClientPage(QWidget):
                     background-color: rgba(230, 230, 230, 0.3);
                 }
             ''')
-            target_page.messageBox.append(
-                item['time']+' ' + item['source']+': '+item['text'])
+            target_page.messageBox.append(item['text'], 0)
 
     def makeFriendList(self, friends: list, isOnline: list):
         '''
@@ -451,12 +449,10 @@ class ClientPage(QWidget):
         }
         try:
             self.socket.send(json.dumps(msg).encode())
-            self.chatPageNow.messageBox.append(
-                str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 本机: ' + msg['text'])
+            self.chatPageNow.messageBox.append(msg['text'], 1)
             self.chatPageNow.inputBox.clear()
         except Exception as e:
-            self.chatPageNow.messageBox.append(
-                str(time.strftime('%Y-%m-%d %H:%M:%S'))+' 发送失败')
+            self.errorBox('发送失败！')
             print(e)
 
     def errorBox(self, mes: str):
@@ -591,6 +587,7 @@ class RecvMsg(QThread):
     refreshFriends = pyqtSignal(list, list)
     messages = pyqtSignal(str)
     unreadMessages = pyqtSignal(list)
+    userMessage = pyqtSignal(str, int)
 
     def __init__(self, master: ClientPage):
         super().__init__()
@@ -638,8 +635,7 @@ class RecvMsg(QThread):
 
                     # 把消息填入消息框
                     for msg in msgs['message']:
-                        target_page.messageBox.append(
-                            msg['time']+' ' + msg['source']+': '+msg['text'])
+                        self.userMessage.emit(msg['text'], 0)
 
                 # 接收服务器结果
                 if msgs['operation'] == 'ans':
