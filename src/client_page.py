@@ -13,15 +13,6 @@ from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
 from src import public_function as pf
 from src import message_box as msgB
 
-# FIXME
-'''
-
-'''
-
-# TODO
-'''
-'''
-
 
 class ClientPage(QWidget):
     def __init__(self, userInfo: dict, sock, serverSocket):
@@ -325,7 +316,7 @@ class ClientPage(QWidget):
             self.receiver.messages.connect(self.errorBox)
             self.receiver.unreadMessages.connect(
                 lambda m: self.unreadMessages(m))
-            self.receiver.userMessage.connect(lambda x,s: self.chatPageNow.messageBox.append(x, s))
+            self.receiver.userMessage.connect(self.appendMsg)
             self.receiver.start()
 
             # 设置在线显示
@@ -355,7 +346,12 @@ class ClientPage(QWidget):
         添加消息
         '''
         self.newMessage.setStyleSheet('''
-            background-color:white;
+            QToolButton{
+                    background-color:white;
+                }
+                QToolButton:hover{
+                    background-color: rgba(230, 230, 230, 1);
+                }
         ''')
         for item in self._unread_buffer:
             if item['source'] not in self._chat_pages:
@@ -582,12 +578,17 @@ class ClientPage(QWidget):
                 }
             ''')
 
+    def appendMsg(self, userID, msg):
+        self.setGetMessageStyleSheet(userID)
+        target_page = self._chat_pages[userID][1]
+        target_page.messageBox.append(msg, 0)
+
 
 class RecvMsg(QThread):
     refreshFriends = pyqtSignal(list, list)
     messages = pyqtSignal(str)
     unreadMessages = pyqtSignal(list)
-    userMessage = pyqtSignal(str, int)
+    userMessage = pyqtSignal(str, str)
 
     def __init__(self, master: ClientPage):
         super().__init__()
@@ -630,12 +631,9 @@ class RecvMsg(QThread):
                         self.unreadMessages.emit(msgs['message'])
                         continue
 
-                    # 收到消息的页面会有黄色提示
-                    self.master.setGetMessageStyleSheet(msgs['source'])
-
                     # 把消息填入消息框
                     for msg in msgs['message']:
-                        self.userMessage.emit(msg['text'], 0)
+                        self.userMessage.emit(msgs['source'], msg['text'])
 
                 # 接收服务器结果
                 if msgs['operation'] == 'ans':
@@ -676,7 +674,7 @@ class FriendButton(QToolButton):
         self.master = master
         self.userID = userID
         self.setIcon(QIcon('icon/friend.png'))
-        self.setText('%010s %s' % (userID, '在线' if isOnline else '离线'))
+        self.setText(userID)
         self.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.setIconSize(QSize(40, 40))
         self.setFixedSize(180, 50)
