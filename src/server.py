@@ -115,7 +115,7 @@ class Server():
     def start(self):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self.s.bind(("127.0.0.1", 9999))
+        self.s.bind(("", 9999))
 
         # 最大连接数量
         self.s.listen(5)
